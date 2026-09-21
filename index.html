@@ -301,7 +301,7 @@ function renderAdmin(){
  managerTable.innerHTML=`<thead><tr><th>Name</th><th>Login ID</th><th>Department</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${managers().map((m,i)=>`<tr><td><b>${m.name}</b></td><td>${m.login_id}</td><td>${m.dept}</td><td>${m.role}</td><td class="${m.active?"statusOn":"statusOff"}">${m.active?"Active":"Inactive"}</td><td><button class="smallBtn" onclick="editManager(${i})">Edit</button> <button class="smallBtn warn" onclick="toggleManager(${i})">${m.active?"Disable":"Enable"}</button>${m.login_id!=="ADMIN"?` <button class="smallBtn danger" onclick="deleteManager(${i})">Delete</button>`:""}</td></tr>`).join("")}</tbody>`
 }
 function clearManagerForm(){mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="4–8 digits";mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
-function editManager(i){const m=managers()[i];mgrName.value=m.name;mgrId.value=m.login_id;mgrId.readOnly=true;mgrPin.value="";mgrPin.placeholder="Leave blank to keep current PIN";mgrDept.value=m.dept;mgrRole.value=m.role;mgrId.dataset.edit=String(i)}
+function editManager(i){const m=managers()[i];mgrName.value=m.name;mgrId.value=m.login_id;mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="Leave blank to keep current PIN";mgrDept.value=m.dept;mgrRole.value=m.role;mgrId.dataset.edit=String(i)}
 async function saveManager(){
  const name=mgrName.value.trim(),id=mgrId.value.trim().toUpperCase(),pin=mgrPin.value.trim(),dept=mgrDept.value,role=mgrRole.value;
  if(!name||!id)return alert("Please complete name and Login ID.");
@@ -317,9 +317,11 @@ async function saveManager(){
  }else{
   const idx=Number(edit),existing=managers()[idx];
   if(pin&&!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
-  const update={name,dept,role};if(pin)update.pin_hash=await sha256Hex(pin);
+  if(id!==existing.login_id&&managers().some(x=>x.login_id===id&&x.login_id!==existing.login_id))return alert("Login ID already exists.");
+  const update={login_id:id,name,dept,role};if(pin)update.pin_hash=await sha256Hex(pin);
   const {error}=await sb.from("attendance_managers").update(update).eq("login_id",existing.login_id);
   if(error){toast("Save failed");console.error(error);return}
+  if(id!==existing.login_id&&session?.login_id===existing.login_id){session.login_id=id;sessionStorage.setItem("bc_final_session",JSON.stringify(session))}
   logAudit("update_manager",existing.login_id,update)
  }
  await loadManagers();clearManagerForm();renderAdmin();toast("Login saved")
