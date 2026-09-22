@@ -330,7 +330,7 @@ async function saveManager(){
  const name=mgrName.value.trim(),id=mgrId.value.trim().toUpperCase(),pin=mgrPin.value.trim(),dept=mgrDept.value,role=mgrRole.value;
  if(!name||!id)return alert("Please complete name and Login ID.");
  const edit=mgrId.dataset.edit;
- if(edit===""){
+ if(!edit){
   if(!pin)return alert("PIN is required for a new login.");
   if(!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
   if(managers().some(x=>x.login_id===id))return alert("Login ID already exists.");
