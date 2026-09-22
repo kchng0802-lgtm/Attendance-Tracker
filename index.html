@@ -137,7 +137,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
       <div class="formGrid3">
         <div class="field"><label>MC</label><input id="mc" type="number" min="0"></div>
         <div class="field"><label>Annual Leave / Other Leave</label><input id="annualLeave" type="number" min="0"></div>
-        <div class="field"><label>OT Hours</label><input id="otHours" type="number" min="0" step="0.5"></div>
+        <div class="field"><label>OT Headcount</label><input id="otHours" type="number" min="0" step="1"></div>
       </div>
       <div class="field"><label>Remarks</label><textarea id="remarks" maxlength="200" placeholder="Optional remarks"></textarea></div>
       <div class="actions"><button class="btn primary" onclick="saveEntry()">Save Update</button><button class="btn" onclick="loadMyEntry()">Reload Existing</button></div>
@@ -226,7 +226,7 @@ async function loadEntries(){
  (data||[]).forEach(r=>{
   if(!E[r.entry_date])E[r.entry_date]={};
   if(!E[r.entry_date][r.dept])E[r.entry_date][r.dept]={};
-  E[r.entry_date][r.dept][r.shift]={planned:r.planned,present:r.present,mc:r.mc,annualLeave:r.annual_leave,otHours:r.ot_hours,remarks:r.remarks,updatedBy:r.updated_by,updatedAt:r.updated_at}
+  E[r.entry_date][r.dept][r.shift]={planned:r.planned,present:r.present,mc:r.mc,annualLeave:r.annual_leave,otHours:r.ot_headcount,remarks:r.remarks,updatedBy:r.updated_by,updatedAt:r.updated_at}
  });
  ENTRIES=E
 }
@@ -257,7 +257,7 @@ function switchView(v){
  document.getElementById(map[v]).classList.add("active");
  ["tvBtn","loginBtn","updateBtn","adminBtn","historyBtn"].forEach(id=>document.getElementById(id)?.classList.remove("active"));
  const b={tv:"tvBtn",login:"loginBtn",supervisor:"updateBtn",admin:"adminBtn",history:"historyBtn"}[v];document.getElementById(b)?.classList.add("active");
- if(v==="supervisor"){renderSupervisor();loadMyEntry()}
+ if(v==="supervisor"){entryShift.value=CURRENT_SHIFT;renderSupervisor();loadMyEntry()}
  if(v==="admin")renderAdmin();
  if(v==="history")renderHistory()
 }
@@ -282,19 +282,19 @@ function renderTV(){
  const ks=[
   ["Total HC",t.planned,"",""],["Present",t.present,"green",(dp>=0?"+":"")+dp+" vs yesterday"],["Attendance Rate",pct(t.att),"green","Target ≥ 90%"],
   ["MC",t.mc,"red",t.planned?pct(100*t.mc/t.planned):"0.0%"],["Annual Leave",t.annualLeave,"yellow",t.planned?pct(100*t.annualLeave/t.planned):"0.0%"],
-  ["On Leave",t.leave,"purple",t.planned?pct(100*t.leave/t.planned):"0.0%"],["OT Today",t.otHours+" hrs","cyan",(dot>=0?"+":"")+dot+" hrs vs yesterday"],["Manpower Gap",t.gap,"red",(dg>=0?"+":"")+dg+" vs yesterday"]
+  ["On Leave",t.leave,"purple",t.planned?pct(100*t.leave/t.planned):"0.0%"],["OT Headcount",t.otHours,"cyan",(dot>=0?"+":"")+dot+" vs yesterday"],["Manpower Gap",t.gap,"red",(dg>=0?"+":"")+dg+" vs yesterday"]
  ];
  kpiGrid.innerHTML=ks.map(k=>`<div class="card kpi ${k[2]}"><div class="label">${k[0]}</div><div class="value">${k[1]}</div><div class="sub">${k[3]}</div></div>`).join("");
  tvShiftBadge.textContent="CURRENT SHIFT: "+CURRENT_SHIFT;
  const activeDepts=DEPTS.filter(dep=>(day[dep]||{})[CURRENT_SHIFT]);
- deptTable.innerHTML=`<thead><tr><th>Department</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>On Leave</th><th>OT</th><th>Gap</th><th>Attendance %</th></tr></thead><tbody>${activeDepts.length?activeDepts.map(dep=>{const r=(day[dep]||{})[CURRENT_SHIFT]||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0),leave=n(r.mc)+n(r.annualLeave);return `<tr><td><b>${dep}</b></td><td>${pl}</td><td>${pr}</td><td style="color:#ff727c">${n(r.mc)}</td><td style="color:#ffd75d">${n(r.annualLeave)}</td><td style="color:#c99dff">${leave}</td><td style="color:#65dff8">${n(r.otHours)}</td><td style="color:#ff727c">${g}</td><td><div class="pct"><div class="bar ${a<90?"warn":""}"><i style="width:${Math.min(a,100)}%"></i></div><b>${pct(a)}</b></div></td></tr>`}).join(""):`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:22px">No updates submitted yet for Shift ${CURRENT_SHIFT} today.</td></tr>`}${activeDepts.length?`<tr class="total"><td>TOTAL</td><td>${t.planned}</td><td>${t.present}</td><td>${t.mc}</td><td>${t.annualLeave}</td><td>${t.leave}</td><td>${t.otHours}</td><td>${t.gap}</td><td>${pct(t.att)}</td></tr>`:""}</tbody>`;
+ deptTable.innerHTML=`<thead><tr><th>Department</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>On Leave</th><th>OT (HC)</th><th>Gap</th><th>Attendance %</th></tr></thead><tbody>${activeDepts.length?activeDepts.map(dep=>{const r=(day[dep]||{})[CURRENT_SHIFT]||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0),leave=n(r.mc)+n(r.annualLeave);return `<tr><td><b>${dep}</b></td><td>${pl}</td><td>${pr}</td><td style="color:#ff727c">${n(r.mc)}</td><td style="color:#ffd75d">${n(r.annualLeave)}</td><td style="color:#c99dff">${leave}</td><td style="color:#65dff8">${n(r.otHours)}</td><td style="color:#ff727c">${g}</td><td><div class="pct"><div class="bar ${a<90?"warn":""}"><i style="width:${Math.min(a,100)}%"></i></div><b>${pct(a)}</b></div></td></tr>`}).join(""):`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:22px">No updates submitted yet for Shift ${CURRENT_SHIFT} today.</td></tr>`}${activeDepts.length?`<tr class="total"><td>TOTAL</td><td>${t.planned}</td><td>${t.present}</td><td>${t.mc}</td><td>${t.annualLeave}</td><td>${t.leave}</td><td>${t.otHours}</td><td>${t.gap}</td><td>${pct(t.att)}</td></tr>`:""}</tbody>`;
  const under=DEPTS.map(dep=>{const r=(day[dep]||{})[CURRENT_SHIFT]||{},a=n(r.planned)?100*n(r.present)/n(r.planned):0;return[dep,a]}).filter(x=>x[1]&&x[1]<90).sort((a,b)=>a[1]-b[1]);
  focusHeadline.textContent=under.length?`${under.length} department${under.length>1?"s":""} below 90% attendance`:"All active departments are at or above 90%";
  focusList.innerHTML=(under.length?under:[["No critical attendance gap",100]]).map(x=>`<li>${x[0]}${x[1]!==100?` (${pct(x[1])})`:""}</li>`).join("");
  insightList.innerHTML=[
   [`${dp>=0?"+":""}${dp} vs yesterday`,"Present headcount"],
   [`${dg>=0?"+":""}${dg} vs yesterday`,"Manpower gap"],
-  [`${dot>=0?"+":""}${dot} hrs vs yesterday`,"OT hours"]
+  [`${dot>=0?"+":""}${dot} vs yesterday`,"OT headcount"]
  ].map(x=>`<div style="padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><b>${x[0]}</b><div style="font-size:11px;color:var(--muted)">${x[1]}</div></div>`).join("")
 }
 
@@ -304,13 +304,13 @@ function loadMyEntry(){
 }
 async function saveEntry(){
  if(!session)return;const date=entryDate.value||iso(),sh=entryShift.value||"A";
- const row={entry_date:date,dept:session.dept,shift:sh,planned:n(planned.value),present:n(present.value),mc:n(mc.value),annual_leave:n(annualLeave.value),ot_hours:n(otHours.value),remarks:remarks.value.trim(),updated_by:session.login_id,updated_at:new Date().toISOString()};
+ const row={entry_date:date,dept:session.dept,shift:sh,planned:n(planned.value),present:n(present.value),mc:n(mc.value),annual_leave:n(annualLeave.value),ot_headcount:n(otHours.value),remarks:remarks.value.trim(),updated_by:session.login_id,updated_at:new Date().toISOString()};
  if(row.present>row.planned&&row.planned>0&&!confirm("Present is higher than planned. Save anyway?"))return;
  const {error}=await sb.from("attendance_entries").upsert(row,{onConflict:"entry_date,dept,shift"});
  if(error){toast("Save failed - check connection");console.error(error);return}
  if(!ENTRIES[date])ENTRIES[date]={};
  if(!ENTRIES[date][session.dept])ENTRIES[date][session.dept]={};
- ENTRIES[date][session.dept][sh]={planned:row.planned,present:row.present,mc:row.mc,annualLeave:row.annual_leave,otHours:row.ot_hours,remarks:row.remarks,updatedBy:row.updated_by,updatedAt:row.updated_at};
+ ENTRIES[date][session.dept][sh]={planned:row.planned,present:row.present,mc:row.mc,annualLeave:row.annual_leave,otHours:row.ot_headcount,remarks:row.remarks,updatedBy:row.updated_by,updatedAt:row.updated_at};
  logAudit("update_entry",date+"/"+session.dept+"/"+sh,row);
  toast(session.dept+" (Shift "+sh+") updated");renderAll();loadMyEntry()
 }
@@ -319,7 +319,7 @@ function renderSupervisor(){
  curShiftLabel.textContent="Shift "+CURRENT_SHIFT;setShiftABtn.classList.toggle("primary",CURRENT_SHIFT==="A");setShiftBBtn.classList.toggle("primary",CURRENT_SHIFT==="B");
  const date=entryDate.value||iso(),sh=entryShift.value||"A",r=(((db()[date]||{})[session.dept]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0);
  miniGrid.innerHTML=[["Total HC",pl],["Present",pr],["Attendance",pct(a)],["Gap",g]].map(x=>`<div class="mini"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
- myTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT</th><th>Attendance</th><th>Gap</th></tr></thead><tbody>${SHIFTS.map(s=>{const rr=(((db()[date]||{})[session.dept]||{})[s])||{},p0=n(rr.planned),pr0=n(rr.present),a0=p0?100*pr0/p0:0;return `<tr><td><b>${session.dept}</b></td><td>Shift ${s}</td><td>${p0}</td><td>${pr0}</td><td>${n(rr.mc)}</td><td>${n(rr.annualLeave)}</td><td>${n(rr.otHours)}</td><td>${pct(a0)}</td><td>${Math.max(p0-pr0,0)}</td></tr>`}).join("")}</tbody>`
+ myTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT (HC)</th><th>Attendance</th><th>Gap</th></tr></thead><tbody><tr><td><b>${session.dept}</b></td><td>Shift ${sh}</td><td>${pl}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${g}</td></tr></tbody>`
 }
 
 function renderAdmin(){
@@ -372,11 +372,11 @@ function renderHistory(){
  depsToShow.forEach(d=>shiftsToShow.forEach(s=>rows.push([d,s,(day[d]||{})[s]||{}])));
  const t=rows.reduce((acc,[,,r])=>{acc.planned+=n(r.planned);acc.present+=n(r.present);acc.mc+=n(r.mc);acc.leave+=n(r.annualLeave);acc.ot+=n(r.otHours);return acc},{planned:0,present:0,mc:0,leave:0,ot:0});
  const att=t.planned?100*t.present/t.planned:0;
- reportCards.innerHTML=[["Total HC",t.planned],["Present",t.present],["Attendance",pct(att)],["OT Hours",t.ot]].map(x=>`<div class="lightCard" style="padding:14px"><div style="font-size:11px;color:#6f7f93">${x[0]}</div><div style="font-size:26px;font-weight:900;margin-top:5px">${x[1]}</div></div>`).join("");
- historyTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT</th><th>Attendance %</th><th>Updated By</th><th>Remarks</th></tr></thead><tbody>${rows.map(([d,s,r])=>{const p0=n(r.planned),pr=n(r.present),a=p0?100*pr/p0:0;return `<tr><td><b>${d}</b></td><td>Shift ${s}</td><td>${p0}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${r.updatedBy||"-"}</td><td>${r.remarks||""}</td></tr>`}).join("")}</tbody>`
+ reportCards.innerHTML=[["Total HC",t.planned],["Present",t.present],["Attendance",pct(att)],["OT Headcount",t.ot]].map(x=>`<div class="lightCard" style="padding:14px"><div style="font-size:11px;color:#6f7f93">${x[0]}</div><div style="font-size:26px;font-weight:900;margin-top:5px">${x[1]}</div></div>`).join("");
+ historyTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT (HC)</th><th>Attendance %</th><th>Updated By</th><th>Remarks</th></tr></thead><tbody>${rows.map(([d,s,r])=>{const p0=n(r.planned),pr=n(r.present),a=p0?100*pr/p0:0;return `<tr><td><b>${d}</b></td><td>Shift ${s}</td><td>${p0}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${r.updatedBy||"-"}</td><td>${r.remarks||""}</td></tr>`}).join("")}</tbody>`
 }
 function exportCSV(){
- const D=db(),rows=[["Date","Department","Shift","Total HC","Present","MC","Annual Leave","OT Hours","Attendance %","Updated By","Remarks"]];
+ const D=db(),rows=[["Date","Department","Shift","Total HC","Present","MC","Annual Leave","OT Headcount","Attendance %","Updated By","Remarks"]];
  Object.keys(D).sort().forEach(date=>DEPTS.forEach(dep=>SHIFTS.forEach(sh=>{const r=((D[date][dep]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0;rows.push([date,dep,sh,pl,pr,n(r.mc),n(r.annualLeave),n(r.otHours),a.toFixed(1),r.updatedBy||"",r.remarks||""])})));
  const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="broadcom_attendance_history.csv";a.click();URL.revokeObjectURL(url)
 }
