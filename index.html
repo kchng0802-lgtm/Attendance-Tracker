@@ -125,9 +125,8 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
   <div class="superGrid">
     <div class="card formCard">
       <div class="notice">You can update only the department assigned to your login ID.</div>
-      <div class="formGrid3">
+      <div class="formGrid2">
         <div class="field"><label>Date</label><input id="entryDate" type="date"></div>
-        <div class="field"><label>Shift</label><select id="entryShift"><option value="A">Shift A</option><option value="B">Shift B</option></select></div>
         <div class="field"><label>Department</label><input id="lockedDept" disabled></div>
       </div>
       <div class="formGrid2">
@@ -244,7 +243,7 @@ async function setCurrentShift(sh){
  if(!session)return;
  const {error}=await sb.from("attendance_shift_status").update({shift:sh,updated_by:session.login_id,updated_at:new Date().toISOString()}).eq("id","current");
  if(error){toast("Could not update shift");console.error(error);return}
- CURRENT_SHIFT=sh;logAudit("set_current_shift","current",{shift:sh});toast("Warehouse shift set to "+sh);renderAll()
+ CURRENT_SHIFT=sh;logAudit("set_current_shift","current",{shift:sh});toast("Warehouse shift set to "+sh);renderAll();if(session)loadMyEntry()
 }
 
 function totals(day,shift){const t={planned:0,present:0,mc:0,annualLeave:0,otHours:0};const shiftsToSum=shift?[shift]:SHIFTS;DEPTS.forEach(dep=>shiftsToSum.forEach(sh=>{const r=(day[dep]||{})[sh]||{};Object.keys(t).forEach(k=>t[k]+=n(r[k]))}));t.leave=t.mc+t.annualLeave;t.gap=Math.max(t.planned-t.present,0);t.att=t.planned?100*t.present/t.planned:0;return t}
@@ -257,7 +256,7 @@ function switchView(v){
  document.getElementById(map[v]).classList.add("active");
  ["tvBtn","loginBtn","updateBtn","adminBtn","historyBtn"].forEach(id=>document.getElementById(id)?.classList.remove("active"));
  const b={tv:"tvBtn",login:"loginBtn",supervisor:"updateBtn",admin:"adminBtn",history:"historyBtn"}[v];document.getElementById(b)?.classList.add("active");
- if(v==="supervisor"){entryShift.value=CURRENT_SHIFT;renderSupervisor();loadMyEntry()}
+ if(v==="supervisor"){renderSupervisor();loadMyEntry()}
  if(v==="admin")renderAdmin();
  if(v==="history")renderHistory()
 }
@@ -299,11 +298,11 @@ function renderTV(){
 }
 
 function loadMyEntry(){
- if(!session)return;const date=entryDate.value||iso(),sh=entryShift.value||"A",r=(((db()[date]||{})[session.dept]||{})[sh])||{};
+ if(!session)return;const date=entryDate.value||iso(),sh=CURRENT_SHIFT,r=(((db()[date]||{})[session.dept]||{})[sh])||{};
  lockedDept.value=session.dept;planned.value=r.planned??0;present.value=r.present??0;mc.value=r.mc??0;annualLeave.value=r.annualLeave??0;otHours.value=r.otHours??0;remarks.value=r.remarks??"";renderSupervisor()
 }
 async function saveEntry(){
- if(!session)return;const date=entryDate.value||iso(),sh=entryShift.value||"A";
+ if(!session)return;const date=entryDate.value||iso(),sh=CURRENT_SHIFT;
  const row={entry_date:date,dept:session.dept,shift:sh,planned:n(planned.value),present:n(present.value),mc:n(mc.value),annual_leave:n(annualLeave.value),ot_headcount:n(otHours.value),remarks:remarks.value.trim(),updated_by:session.login_id,updated_at:new Date().toISOString()};
  if(row.present>row.planned&&row.planned>0&&!confirm("Present is higher than planned. Save anyway?"))return;
  const {error}=await sb.from("attendance_entries").upsert(row,{onConflict:"entry_date,dept,shift"});
@@ -317,7 +316,7 @@ async function saveEntry(){
 function renderSupervisor(){
  if(!session)return;superSubtitle.textContent="Assigned department: "+session.dept;userBadge.textContent=session.name+" • "+session.login_id;lockedDept.value=session.dept;
  curShiftLabel.textContent="Shift "+CURRENT_SHIFT;setShiftABtn.classList.toggle("primary",CURRENT_SHIFT==="A");setShiftBBtn.classList.toggle("primary",CURRENT_SHIFT==="B");
- const date=entryDate.value||iso(),sh=entryShift.value||"A",r=(((db()[date]||{})[session.dept]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0);
+ const date=entryDate.value||iso(),sh=CURRENT_SHIFT,r=(((db()[date]||{})[session.dept]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0);
  miniGrid.innerHTML=[["Total HC",pl],["Present",pr],["Attendance",pct(a)],["Gap",g]].map(x=>`<div class="mini"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
  myTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT (HC)</th><th>Attendance</th><th>Gap</th></tr></thead><tbody><tr><td><b>${session.dept}</b></td><td>Shift ${sh}</td><td>${pl}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${g}</td></tr></tbody>`
 }
@@ -386,7 +385,7 @@ function renderAll(){renderTV();if(session)renderSupervisor();if(session?.role==
 async function init(){
  entryDate.value=iso();reportDate.value=iso();
  mgrDept.innerHTML=MGR_DEPTS.map(d=>`<option>${d}</option>`).join("");reportDept.innerHTML=`<option>All Departments</option>`+DEPTS.map(d=>`<option>${d}</option>`).join("");
- entryDate.addEventListener("change",loadMyEntry);entryShift.addEventListener("change",loadMyEntry);setInterval(()=>clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"}),1000);clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"});
+ entryDate.addEventListener("change",loadMyEntry);setInterval(()=>clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"}),1000);clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"});
  loadSession();
  await refreshAll();
  setInterval(refreshAll,20000) // keeps every screen/device in sync without needing a manual refresh
