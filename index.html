@@ -79,7 +79,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 <section id="tvView" class="view active">
   <div class="headline">
     <div><h2>Daily Attendance & Manpower Overview</h2><p>People • Safety • Productivity • A stronger tomorrow</p></div>
-    <div><div class="live">● LIVE</div><div class="clock" id="clock"></div></div>
+    <div><div class="live">● LIVE</div><div class="clock" id="clock"></div><div id="tvShiftBadge" style="margin-top:4px;font-weight:800;color:#ffe173"></div></div>
   </div>
   <div class="kpis" id="kpiGrid"></div>
   <div class="dashboardGrid">
@@ -114,6 +114,13 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
   <div class="headline">
     <div><h2>My Team Attendance Update</h2><p id="superSubtitle"></p></div>
     <div><span class="badge" id="userBadge"></span> <span class="lock">🔒 Department locked</span></div>
+  </div>
+  <div class="card panel" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div><b>Warehouse Current Shift:</b> <span id="curShiftLabel" style="font-weight:900"></span><div style="font-size:11px;color:var(--muted);margin-top:2px">Shown live on the TV Dashboard for everyone.</div></div>
+    <div class="actions" style="margin-top:0">
+      <button class="btn" id="setShiftABtn" onclick="setCurrentShift('A')">Set Shift A</button>
+      <button class="btn" id="setShiftBBtn" onclick="setCurrentShift('B')">Set Shift B</button>
+    </div>
   </div>
   <div class="superGrid">
     <div class="card formCard">
@@ -195,6 +202,7 @@ const SHIFTS=["A","B"];
 let session=null;
 let ENTRIES={};   // {date:{dept:{shift:{planned,present,mc,annualLeave,otHours,remarks,updatedBy,updatedAt}}}}
 let MANAGERS=[];  // [{login_id,name,pin_hash,dept,role,active}]
+let CURRENT_SHIFT="A";
 
 function iso(d=new Date()){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
 function fmtDate(s){return new Date(s+"T12:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short",year:"numeric"})}
@@ -226,7 +234,18 @@ async function logAudit(action,recordId,details){
  try{await sb.from("attendance_audit_log").insert({table_name:"attendance",record_id:String(recordId),action,employee_id:session?.login_id||null,employee_name:session?.name||null,details:details||null})}
  catch(e){console.error(e)}
 }
-async function refreshAll(){await Promise.all([loadManagers(),loadEntries()]);renderAll()}
+async function refreshAll(){await Promise.all([loadManagers(),loadEntries(),loadShiftStatus()]);renderAll()}
+async function loadShiftStatus(){
+ const {data,error}=await sb.from("attendance_shift_status").select("*").eq("id","current").maybeSingle();
+ if(error){console.error(error);return}
+ if(data)CURRENT_SHIFT=data.shift
+}
+async function setCurrentShift(sh){
+ if(!session)return;
+ const {error}=await sb.from("attendance_shift_status").update({shift:sh,updated_by:session.login_id,updated_at:new Date().toISOString()}).eq("id","current");
+ if(error){toast("Could not update shift");console.error(error);return}
+ CURRENT_SHIFT=sh;logAudit("set_current_shift","current",{shift:sh});toast("Warehouse shift set to "+sh);renderAll()
+}
 
 function totals(day){const t={planned:0,present:0,mc:0,annualLeave:0,otHours:0};DEPTS.forEach(dep=>SHIFTS.forEach(sh=>{const r=(day[dep]||{})[sh]||{};Object.keys(t).forEach(k=>t[k]+=n(r[k]))}));t.leave=t.mc+t.annualLeave;t.gap=Math.max(t.planned-t.present,0);t.att=t.planned?100*t.present/t.planned:0;return t}
 
@@ -266,6 +285,7 @@ function renderTV(){
   ["On Leave",t.leave,"purple",t.planned?pct(100*t.leave/t.planned):"0.0%"],["OT Today",t.otHours+" hrs","cyan",(dot>=0?"+":"")+dot+" hrs vs yesterday"],["Manpower Gap",t.gap,"red",(dg>=0?"+":"")+dg+" vs yesterday"]
  ];
  kpiGrid.innerHTML=ks.map(k=>`<div class="card kpi ${k[2]}"><div class="label">${k[0]}</div><div class="value">${k[1]}</div><div class="sub">${k[3]}</div></div>`).join("");
+ tvShiftBadge.textContent="CURRENT SHIFT: "+CURRENT_SHIFT;
  const rows=DEPTS.flatMap(dep=>SHIFTS.map(sh=>[dep,sh,(day[dep]||{})[sh]||{}]));
  deptTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>On Leave</th><th>OT</th><th>Gap</th><th>Attendance %</th></tr></thead><tbody>${rows.map(([dep,sh,r])=>{const pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0),leave=n(r.mc)+n(r.annualLeave);return `<tr><td><b>${dep}</b></td><td>Shift ${sh}</td><td>${pl}</td><td>${pr}</td><td style="color:#ff727c">${n(r.mc)}</td><td style="color:#ffd75d">${n(r.annualLeave)}</td><td style="color:#c99dff">${leave}</td><td style="color:#65dff8">${n(r.otHours)}</td><td style="color:#ff727c">${g}</td><td><div class="pct"><div class="bar ${a<90?"warn":""}"><i style="width:${Math.min(a,100)}%"></i></div><b>${pct(a)}</b></div></td></tr>`}).join("")}<tr class="total"><td colspan="2">TOTAL</td><td>${t.planned}</td><td>${t.present}</td><td>${t.mc}</td><td>${t.annualLeave}</td><td>${t.leave}</td><td>${t.otHours}</td><td>${t.gap}</td><td>${pct(t.att)}</td></tr></tbody>`;
  const under=DEPTS.map(dep=>{const a1=(day[dep]||{}).A||{},b1=(day[dep]||{}).B||{},pl=n(a1.planned)+n(b1.planned),pr=n(a1.present)+n(b1.present),a=pl?100*pr/pl:0;return[dep,a]}).filter(x=>x[1]&&x[1]<90).sort((a,b)=>a[1]-b[1]);
@@ -296,6 +316,7 @@ async function saveEntry(){
 }
 function renderSupervisor(){
  if(!session)return;superSubtitle.textContent="Assigned department: "+session.dept;userBadge.textContent=session.name+" • "+session.login_id;lockedDept.value=session.dept;
+ curShiftLabel.textContent="Shift "+CURRENT_SHIFT;setShiftABtn.classList.toggle("primary",CURRENT_SHIFT==="A");setShiftBBtn.classList.toggle("primary",CURRENT_SHIFT==="B");
  const date=entryDate.value||iso(),sh=entryShift.value||"A",r=(((db()[date]||{})[session.dept]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0);
  miniGrid.innerHTML=[["Total HC",pl],["Present",pr],["Attendance",pct(a)],["Gap",g]].map(x=>`<div class="mini"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
  myTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT</th><th>Attendance</th><th>Gap</th></tr></thead><tbody>${SHIFTS.map(s=>{const rr=(((db()[date]||{})[session.dept]||{})[s])||{},p0=n(rr.planned),pr0=n(rr.present),a0=p0?100*pr0/p0:0;return `<tr><td><b>${session.dept}</b></td><td>Shift ${s}</td><td>${p0}</td><td>${pr0}</td><td>${n(rr.mc)}</td><td>${n(rr.annualLeave)}</td><td>${n(rr.otHours)}</td><td>${pct(a0)}</td><td>${Math.max(p0-pr0,0)}</td></tr>`}).join("")}</tbody>`
