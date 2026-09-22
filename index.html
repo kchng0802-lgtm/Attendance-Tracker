@@ -23,7 +23,7 @@ main{padding:16px 18px 24px}.view{display:none}.view.active{display:block}
 .card{background:linear-gradient(180deg,rgba(18,48,71,.98),rgba(8,29,45,.98));border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);box-shadow:var(--shadow)}
 .headline{display:flex;justify-content:space-between;align-items:end;gap:14px;margin-bottom:13px}.headline h2{margin:0;font-size:clamp(22px,2.3vw,34px)}.headline p{margin:5px 0 0;color:var(--muted)}
 .clock{font-size:24px;font-weight:900}.live{color:#7df0aa;font-weight:800}
-.kpis{display:grid;grid-template-columns:repeat(8,minmax(120px,1fr));gap:10px;margin-bottom:12px}
+.kpis{display:grid;grid-template-columns:repeat(9,minmax(110px,1fr));gap:10px;margin-bottom:12px}
 .kpi{padding:13px;min-height:124px}.kpi .label{font-size:12px;font-weight:800}.kpi .value{font-size:clamp(28px,2.4vw,44px);font-weight:900;margin-top:12px}.kpi .sub{font-size:11px;color:var(--muted);margin-top:7px}
 .kpi.green{background:linear-gradient(180deg,rgba(0,105,67,.72),rgba(7,53,43,.88))}.kpi.red{background:linear-gradient(180deg,rgba(133,13,39,.76),rgba(61,9,23,.9))}.kpi.yellow{background:linear-gradient(180deg,rgba(121,84,4,.75),rgba(54,39,6,.9))}.kpi.purple{background:linear-gradient(180deg,rgba(76,38,123,.76),rgba(42,24,70,.9))}.kpi.cyan{background:linear-gradient(180deg,rgba(5,93,118,.74),rgba(4,48,62,.9))}
 .dashboardGrid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(330px,.95fr);gap:12px}
@@ -280,6 +280,7 @@ function renderTV(){
  const dp=t.present-prev.present,dg=t.gap-prev.gap,dot=t.otHours-prev.otHours;
  const ks=[
   ["Planned Headcount",t.planned,"",""],["Present",t.present,"green",(dp>=0?"+":"")+dp+" vs yesterday"],["Attendance Rate",pct(t.att),"green","Target ≥ 90%"],
+  ["Coverage %",t.planned?pct(100*(t.present+t.otHours)/t.planned):"0.0%","cyan","Present + OT vs Planned"],
   ["MC",t.mc,"red",t.planned?pct(100*t.mc/t.planned):"0.0%"],["Annual Leave",t.annualLeave,"yellow",t.planned?pct(100*t.annualLeave/t.planned):"0.0%"],
   ["On Leave",t.leave,"purple",t.planned?pct(100*t.leave/t.planned):"0.0%"],["OT Headcount",t.otHours,"cyan",(dot>=0?"+":"")+dot+" vs yesterday"],["Manpower Gap",t.gap,"red",(dg>=0?"+":"")+dg+" vs yesterday"]
  ];
