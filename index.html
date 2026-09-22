@@ -187,7 +187,8 @@ const SUPABASE_URL = "https://gbgxejgscquaovrxelfr.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3hlamdzY3F1YW92cnhlbGZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NDY4NzEsImV4cCI6MjEwMjIyMjg3MX0.nngpDcJDtPbC1K0HWBmH-BfHY8iqRcHXrxKMtY_nCBQ";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const DEPTS=["Training","Receiving","Picking","Packing","Shipping","Trainer","Technician","Office / Mgmt"];
+const DEPTS=["Training","Receiving","Picking","Packing","Shipping","Trainer","Technician"];
+const MGR_DEPTS=DEPTS.concat(["Office / Mgmt"]); // admin logins can still be tagged Office/Mgmt; it's just not a tracked attendance department
 let session=null;
 let ENTRIES={};   // {date:{dept:{planned,present,mc,annualLeave,otHours,remarks,updatedBy,updatedAt}}}
 let MANAGERS=[];  // [{login_id,name,pin_hash,dept,role,active}]
@@ -355,7 +356,7 @@ async function manualRefresh(){await refreshAll();toast("Refreshed")}
 function renderAll(){renderTV();if(session)renderSupervisor();if(session?.role==="admin"){renderAdmin();renderHistory()}}
 async function init(){
  entryDate.value=iso();reportDate.value=iso();
- mgrDept.innerHTML=DEPTS.map(d=>`<option>${d}</option>`).join("");reportDept.innerHTML=`<option>All Departments</option>`+DEPTS.map(d=>`<option>${d}</option>`).join("");
+ mgrDept.innerHTML=MGR_DEPTS.map(d=>`<option>${d}</option>`).join("");reportDept.innerHTML=`<option>All Departments</option>`+DEPTS.map(d=>`<option>${d}</option>`).join("");
  entryDate.addEventListener("change",loadMyEntry);setInterval(()=>clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"}),1000);clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"});
  loadSession();
  await refreshAll();
