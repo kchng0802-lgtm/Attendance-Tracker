@@ -46,7 +46,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 .adminGrid{display:grid;grid-template-columns:minmax(300px,.7fr) minmax(0,1.5fr);gap:14px}.adminCard{padding:18px}
 .smallBtn{padding:6px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#153249;color:#fff;cursor:pointer}.smallBtn.warn{background:#5a4210}.smallBtn.danger{background:#6b1023}
 .statusOn{color:#6ef0a2}.statusOff{color:#ff858e}
-.reportFilters{display:grid;grid-template-columns:180px 220px auto;gap:10px;align-items:end;margin-bottom:12px}
+.reportFilters{display:grid;grid-template-columns:160px 200px 140px auto;gap:10px;align-items:end;margin-bottom:12px}
 .reportCards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 .lightCard{background:#fff;color:var(--ink);border-radius:var(--radius);box-shadow:0 10px 30px rgba(19,35,58,.12);border:1px solid #dfe5ec}
 .lightCard .sectionTitle{color:var(--ink)}
@@ -118,12 +118,13 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
   <div class="superGrid">
     <div class="card formCard">
       <div class="notice">You can update only the department assigned to your login ID.</div>
-      <div class="formGrid2">
+      <div class="formGrid3">
         <div class="field"><label>Date</label><input id="entryDate" type="date"></div>
+        <div class="field"><label>Shift</label><select id="entryShift"><option value="A">Shift A</option><option value="B">Shift B</option></select></div>
         <div class="field"><label>Department</label><input id="lockedDept" disabled></div>
       </div>
       <div class="formGrid2">
-        <div class="field"><label>Planned Headcount</label><input id="planned" type="number" min="0"></div>
+        <div class="field"><label>Total HC</label><input id="planned" type="number" min="0"></div>
         <div class="field"><label>Present</label><input id="present" type="number" min="0"></div>
       </div>
       <div class="formGrid3">
@@ -167,6 +168,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
   <div class="reportFilters">
     <div class="field"><label>Date</label><input id="reportDate" type="date"></div>
     <div class="field"><label>Department</label><select id="reportDept"></select></div>
+    <div class="field"><label>Shift</label><select id="reportShift"><option value="All">All Shifts</option><option value="A">Shift A</option><option value="B">Shift B</option></select></div>
     <button class="btn primary" onclick="renderHistory()">Apply Filter</button>
   </div>
   <div class="reportCards" id="reportCards"></div>
@@ -187,10 +189,11 @@ const SUPABASE_URL = "https://gbgxejgscquaovrxelfr.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3hlamdzY3F1YW92cnhlbGZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NDY4NzEsImV4cCI6MjEwMjIyMjg3MX0.nngpDcJDtPbC1K0HWBmH-BfHY8iqRcHXrxKMtY_nCBQ";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const DEPTS=["Training","Receiving","Picking","Packing","Shipping","Trainer","Technician"];
+const DEPTS=["Receiving","Cycle Count","Training","P&P","Escalation","Technician","Shipping"];
 const MGR_DEPTS=DEPTS.concat(["Office / Mgmt"]); // admin logins can still be tagged Office/Mgmt; it's just not a tracked attendance department
+const SHIFTS=["A","B"];
 let session=null;
-let ENTRIES={};   // {date:{dept:{planned,present,mc,annualLeave,otHours,remarks,updatedBy,updatedAt}}}
+let ENTRIES={};   // {date:{dept:{shift:{planned,present,mc,annualLeave,otHours,remarks,updatedBy,updatedAt}}}}
 let MANAGERS=[];  // [{login_id,name,pin_hash,dept,role,active}]
 
 function iso(d=new Date()){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
@@ -214,7 +217,8 @@ async function loadEntries(){
  const E={};
  (data||[]).forEach(r=>{
   if(!E[r.entry_date])E[r.entry_date]={};
-  E[r.entry_date][r.dept]={planned:r.planned,present:r.present,mc:r.mc,annualLeave:r.annual_leave,otHours:r.ot_hours,remarks:r.remarks,updatedBy:r.updated_by,updatedAt:r.updated_at}
+  if(!E[r.entry_date][r.dept])E[r.entry_date][r.dept]={};
+  E[r.entry_date][r.dept][r.shift]={planned:r.planned,present:r.present,mc:r.mc,annualLeave:r.annual_leave,otHours:r.ot_hours,remarks:r.remarks,updatedBy:r.updated_by,updatedAt:r.updated_at}
  });
  ENTRIES=E
 }
@@ -224,7 +228,7 @@ async function logAudit(action,recordId,details){
 }
 async function refreshAll(){await Promise.all([loadManagers(),loadEntries()]);renderAll()}
 
-function totals(day){const t={planned:0,present:0,mc:0,annualLeave:0,otHours:0};DEPTS.forEach(dep=>{const r=day[dep]||{};Object.keys(t).forEach(k=>t[k]+=n(r[k]))});t.leave=t.mc+t.annualLeave;t.gap=Math.max(t.planned-t.present,0);t.att=t.planned?100*t.present/t.planned:0;return t}
+function totals(day){const t={planned:0,present:0,mc:0,annualLeave:0,otHours:0};DEPTS.forEach(dep=>SHIFTS.forEach(sh=>{const r=(day[dep]||{})[sh]||{};Object.keys(t).forEach(k=>t[k]+=n(r[k]))}));t.leave=t.mc+t.annualLeave;t.gap=Math.max(t.planned-t.present,0);t.att=t.planned?100*t.present/t.planned:0;return t}
 
 function switchView(v){
  const map={tv:"tvView",login:"loginView",supervisor:"superView",admin:"adminView",history:"historyView"};
@@ -257,13 +261,14 @@ function renderTV(){
  const D=db(),day=D[iso()]||{},t=totals(day);const y=new Date();y.setDate(y.getDate()-1);const prev=totals(D[iso(y)]||{});
  const dp=t.present-prev.present,dg=t.gap-prev.gap,dot=t.otHours-prev.otHours;
  const ks=[
-  ["Total Planned",t.planned,"",""],["Present",t.present,"green",(dp>=0?"+":"")+dp+" vs yesterday"],["Attendance Rate",pct(t.att),"green","Target ≥ 90%"],
+  ["Total HC",t.planned,"",""],["Present",t.present,"green",(dp>=0?"+":"")+dp+" vs yesterday"],["Attendance Rate",pct(t.att),"green","Target ≥ 90%"],
   ["MC",t.mc,"red",t.planned?pct(100*t.mc/t.planned):"0.0%"],["Annual Leave",t.annualLeave,"yellow",t.planned?pct(100*t.annualLeave/t.planned):"0.0%"],
   ["On Leave",t.leave,"purple",t.planned?pct(100*t.leave/t.planned):"0.0%"],["OT Today",t.otHours+" hrs","cyan",(dot>=0?"+":"")+dot+" hrs vs yesterday"],["Manpower Gap",t.gap,"red",(dg>=0?"+":"")+dg+" vs yesterday"]
  ];
  kpiGrid.innerHTML=ks.map(k=>`<div class="card kpi ${k[2]}"><div class="label">${k[0]}</div><div class="value">${k[1]}</div><div class="sub">${k[3]}</div></div>`).join("");
- deptTable.innerHTML=`<thead><tr><th>Department</th><th>Planned</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>On Leave</th><th>OT</th><th>Gap</th><th>Attendance %</th></tr></thead><tbody>${DEPTS.map(dep=>{const r=day[dep]||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0),leave=n(r.mc)+n(r.annualLeave);return `<tr><td><b>${dep}</b></td><td>${pl}</td><td>${pr}</td><td style="color:#ff727c">${n(r.mc)}</td><td style="color:#ffd75d">${n(r.annualLeave)}</td><td style="color:#c99dff">${leave}</td><td style="color:#65dff8">${n(r.otHours)}</td><td style="color:#ff727c">${g}</td><td><div class="pct"><div class="bar ${a<90?"warn":""}"><i style="width:${Math.min(a,100)}%"></i></div><b>${pct(a)}</b></div></td></tr>`}).join("")}<tr class="total"><td>TOTAL</td><td>${t.planned}</td><td>${t.present}</td><td>${t.mc}</td><td>${t.annualLeave}</td><td>${t.leave}</td><td>${t.otHours}</td><td>${t.gap}</td><td>${pct(t.att)}</td></tr></tbody>`;
- const under=DEPTS.map(dep=>{const r=day[dep]||{},a=n(r.planned)?100*n(r.present)/n(r.planned):0;return[dep,a]}).filter(x=>x[1]&&x[1]<90).sort((a,b)=>a[1]-b[1]);
+ const rows=DEPTS.flatMap(dep=>SHIFTS.map(sh=>[dep,sh,(day[dep]||{})[sh]||{}]));
+ deptTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>On Leave</th><th>OT</th><th>Gap</th><th>Attendance %</th></tr></thead><tbody>${rows.map(([dep,sh,r])=>{const pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0),leave=n(r.mc)+n(r.annualLeave);return `<tr><td><b>${dep}</b></td><td>Shift ${sh}</td><td>${pl}</td><td>${pr}</td><td style="color:#ff727c">${n(r.mc)}</td><td style="color:#ffd75d">${n(r.annualLeave)}</td><td style="color:#c99dff">${leave}</td><td style="color:#65dff8">${n(r.otHours)}</td><td style="color:#ff727c">${g}</td><td><div class="pct"><div class="bar ${a<90?"warn":""}"><i style="width:${Math.min(a,100)}%"></i></div><b>${pct(a)}</b></div></td></tr>`}).join("")}<tr class="total"><td colspan="2">TOTAL</td><td>${t.planned}</td><td>${t.present}</td><td>${t.mc}</td><td>${t.annualLeave}</td><td>${t.leave}</td><td>${t.otHours}</td><td>${t.gap}</td><td>${pct(t.att)}</td></tr></tbody>`;
+ const under=DEPTS.map(dep=>{const a1=(day[dep]||{}).A||{},b1=(day[dep]||{}).B||{},pl=n(a1.planned)+n(b1.planned),pr=n(a1.present)+n(b1.present),a=pl?100*pr/pl:0;return[dep,a]}).filter(x=>x[1]&&x[1]<90).sort((a,b)=>a[1]-b[1]);
  focusHeadline.textContent=under.length?`${under.length} department${under.length>1?"s":""} below 90% attendance`:"All active departments are at or above 90%";
  focusList.innerHTML=(under.length?under:[["No critical attendance gap",100]]).map(x=>`<li>${x[0]}${x[1]!==100?` (${pct(x[1])})`:""}</li>`).join("");
  insightList.innerHTML=[
@@ -274,25 +279,26 @@ function renderTV(){
 }
 
 function loadMyEntry(){
- if(!session)return;const date=entryDate.value||iso(),r=(db()[date]||{})[session.dept]||{};
+ if(!session)return;const date=entryDate.value||iso(),sh=entryShift.value||"A",r=(((db()[date]||{})[session.dept]||{})[sh])||{};
  lockedDept.value=session.dept;planned.value=r.planned??0;present.value=r.present??0;mc.value=r.mc??0;annualLeave.value=r.annualLeave??0;otHours.value=r.otHours??0;remarks.value=r.remarks??"";renderSupervisor()
 }
 async function saveEntry(){
- if(!session)return;const date=entryDate.value||iso();
- const row={entry_date:date,dept:session.dept,planned:n(planned.value),present:n(present.value),mc:n(mc.value),annual_leave:n(annualLeave.value),ot_hours:n(otHours.value),remarks:remarks.value.trim(),updated_by:session.login_id,updated_at:new Date().toISOString()};
+ if(!session)return;const date=entryDate.value||iso(),sh=entryShift.value||"A";
+ const row={entry_date:date,dept:session.dept,shift:sh,planned:n(planned.value),present:n(present.value),mc:n(mc.value),annual_leave:n(annualLeave.value),ot_hours:n(otHours.value),remarks:remarks.value.trim(),updated_by:session.login_id,updated_at:new Date().toISOString()};
  if(row.present>row.planned&&row.planned>0&&!confirm("Present is higher than planned. Save anyway?"))return;
- const {error}=await sb.from("attendance_entries").upsert(row,{onConflict:"entry_date,dept"});
+ const {error}=await sb.from("attendance_entries").upsert(row,{onConflict:"entry_date,dept,shift"});
  if(error){toast("Save failed - check connection");console.error(error);return}
  if(!ENTRIES[date])ENTRIES[date]={};
- ENTRIES[date][session.dept]={planned:row.planned,present:row.present,mc:row.mc,annualLeave:row.annual_leave,otHours:row.ot_hours,remarks:row.remarks,updatedBy:row.updated_by,updatedAt:row.updated_at};
- logAudit("update_entry",date+"/"+session.dept,row);
- toast(session.dept+" updated");renderAll();loadMyEntry()
+ if(!ENTRIES[date][session.dept])ENTRIES[date][session.dept]={};
+ ENTRIES[date][session.dept][sh]={planned:row.planned,present:row.present,mc:row.mc,annualLeave:row.annual_leave,otHours:row.ot_hours,remarks:row.remarks,updatedBy:row.updated_by,updatedAt:row.updated_at};
+ logAudit("update_entry",date+"/"+session.dept+"/"+sh,row);
+ toast(session.dept+" (Shift "+sh+") updated");renderAll();loadMyEntry()
 }
 function renderSupervisor(){
  if(!session)return;superSubtitle.textContent="Assigned department: "+session.dept;userBadge.textContent=session.name+" • "+session.login_id;lockedDept.value=session.dept;
- const r=(db()[entryDate.value||iso()]||{})[session.dept]||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0);
- miniGrid.innerHTML=[["Planned",pl],["Present",pr],["Attendance",pct(a)],["Gap",g]].map(x=>`<div class="mini"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
- myTable.innerHTML=`<thead><tr><th>Department</th><th>Planned</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT</th><th>Attendance</th><th>Gap</th></tr></thead><tbody><tr><td><b>${session.dept}</b></td><td>${pl}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${g}</td></tr></tbody>`
+ const date=entryDate.value||iso(),sh=entryShift.value||"A",r=(((db()[date]||{})[session.dept]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=Math.max(pl-pr,0);
+ miniGrid.innerHTML=[["Total HC",pl],["Present",pr],["Attendance",pct(a)],["Gap",g]].map(x=>`<div class="mini"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
+ myTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT</th><th>Attendance</th><th>Gap</th></tr></thead><tbody>${SHIFTS.map(s=>{const rr=(((db()[date]||{})[session.dept]||{})[s])||{},p0=n(rr.planned),pr0=n(rr.present),a0=p0?100*pr0/p0:0;return `<tr><td><b>${session.dept}</b></td><td>Shift ${s}</td><td>${p0}</td><td>${pr0}</td><td>${n(rr.mc)}</td><td>${n(rr.annualLeave)}</td><td>${n(rr.otHours)}</td><td>${pct(a0)}</td><td>${Math.max(p0-pr0,0)}</td></tr>`}).join("")}</tbody>`
 }
 
 function renderAdmin(){
@@ -338,17 +344,19 @@ async function deleteManager(i){
 }
 
 function renderHistory(){
- const D=db(),date=reportDate.value||iso(),dep=reportDept.value,day=D[date]||{};
+ const D=db(),date=reportDate.value||iso(),dep=reportDept.value,shFilter=reportShift.value||"All",day=D[date]||{};
+ const shiftsToShow=shFilter==="All"?SHIFTS:[shFilter];
+ const depsToShow=dep==="All Departments"?DEPTS:[dep];
  let rows=[];
- if(dep==="All Departments"){DEPTS.forEach(d=>rows.push([d,day[d]||{}]))}else rows=[[dep,day[dep]||{}]];
- const t=rows.reduce((acc,[,r])=>{acc.planned+=n(r.planned);acc.present+=n(r.present);acc.mc+=n(r.mc);acc.leave+=n(r.annualLeave);acc.ot+=n(r.otHours);return acc},{planned:0,present:0,mc:0,leave:0,ot:0});
+ depsToShow.forEach(d=>shiftsToShow.forEach(s=>rows.push([d,s,(day[d]||{})[s]||{}])));
+ const t=rows.reduce((acc,[,,r])=>{acc.planned+=n(r.planned);acc.present+=n(r.present);acc.mc+=n(r.mc);acc.leave+=n(r.annualLeave);acc.ot+=n(r.otHours);return acc},{planned:0,present:0,mc:0,leave:0,ot:0});
  const att=t.planned?100*t.present/t.planned:0;
- reportCards.innerHTML=[["Planned",t.planned],["Present",t.present],["Attendance",pct(att)],["OT Hours",t.ot]].map(x=>`<div class="lightCard" style="padding:14px"><div style="font-size:11px;color:#6f7f93">${x[0]}</div><div style="font-size:26px;font-weight:900;margin-top:5px">${x[1]}</div></div>`).join("");
- historyTable.innerHTML=`<thead><tr><th>Department</th><th>Planned</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT</th><th>Attendance %</th><th>Updated By</th><th>Remarks</th></tr></thead><tbody>${rows.map(([d,r])=>{const p0=n(r.planned),pr=n(r.present),a=p0?100*pr/p0:0;return `<tr><td><b>${d}</b></td><td>${p0}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${r.updatedBy||"-"}</td><td>${r.remarks||""}</td></tr>`}).join("")}</tbody>`
+ reportCards.innerHTML=[["Total HC",t.planned],["Present",t.present],["Attendance",pct(att)],["OT Hours",t.ot]].map(x=>`<div class="lightCard" style="padding:14px"><div style="font-size:11px;color:#6f7f93">${x[0]}</div><div style="font-size:26px;font-weight:900;margin-top:5px">${x[1]}</div></div>`).join("");
+ historyTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT</th><th>Attendance %</th><th>Updated By</th><th>Remarks</th></tr></thead><tbody>${rows.map(([d,s,r])=>{const p0=n(r.planned),pr=n(r.present),a=p0?100*pr/p0:0;return `<tr><td><b>${d}</b></td><td>Shift ${s}</td><td>${p0}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${r.updatedBy||"-"}</td><td>${r.remarks||""}</td></tr>`}).join("")}</tbody>`
 }
 function exportCSV(){
- const D=db(),rows=[["Date","Department","Planned","Present","MC","Annual Leave","OT Hours","Attendance %","Updated By","Remarks"]];
- Object.keys(D).sort().forEach(date=>DEPTS.forEach(dep=>{const r=D[date][dep]||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0;rows.push([date,dep,pl,pr,n(r.mc),n(r.annualLeave),n(r.otHours),a.toFixed(1),r.updatedBy||"",r.remarks||""])}));
+ const D=db(),rows=[["Date","Department","Shift","Total HC","Present","MC","Annual Leave","OT Hours","Attendance %","Updated By","Remarks"]];
+ Object.keys(D).sort().forEach(date=>DEPTS.forEach(dep=>SHIFTS.forEach(sh=>{const r=((D[date][dep]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0;rows.push([date,dep,sh,pl,pr,n(r.mc),n(r.annualLeave),n(r.otHours),a.toFixed(1),r.updatedBy||"",r.remarks||""])})));
  const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="broadcom_attendance_history.csv";a.click();URL.revokeObjectURL(url)
 }
 async function toggleFullscreen(){if(!document.fullscreenElement)await document.documentElement.requestFullscreen().catch(()=>{});else await document.exitFullscreen().catch(()=>{})}
@@ -357,7 +365,7 @@ function renderAll(){renderTV();if(session)renderSupervisor();if(session?.role==
 async function init(){
  entryDate.value=iso();reportDate.value=iso();
  mgrDept.innerHTML=MGR_DEPTS.map(d=>`<option>${d}</option>`).join("");reportDept.innerHTML=`<option>All Departments</option>`+DEPTS.map(d=>`<option>${d}</option>`).join("");
- entryDate.addEventListener("change",loadMyEntry);setInterval(()=>clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"}),1000);clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"});
+ entryDate.addEventListener("change",loadMyEntry);entryShift.addEventListener("change",loadMyEntry);setInterval(()=>clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"}),1000);clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"});
  loadSession();
  await refreshAll();
  setInterval(refreshAll,20000) // keeps every screen/device in sync without needing a manual refresh
