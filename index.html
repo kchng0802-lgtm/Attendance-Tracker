@@ -22,7 +22,7 @@ body{min-height:100vh;background:radial-gradient(circle at 86% 0%,rgba(227,24,55
 main{padding:16px 18px 24px}.view{display:none}.view.active{display:block}
 .card{background:linear-gradient(180deg,rgba(18,48,71,.98),rgba(8,29,45,.98));border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);box-shadow:var(--shadow)}
 .headline{display:flex;justify-content:space-between;align-items:end;gap:14px;margin-bottom:13px}.headline h2{margin:0;font-size:clamp(22px,2.3vw,34px)}.headline p{margin:5px 0 0;color:var(--muted)}
-.clock{font-size:24px;font-weight:900}.live{color:#7df0aa;font-weight:800}
+.clock{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums}.live{color:#7df0aa;font-weight:800}
 .kpis{display:grid;grid-template-columns:repeat(8,minmax(110px,1fr));gap:10px;margin-bottom:12px}
 .kpi{padding:13px;min-height:124px}.kpi .label{font-size:12px;font-weight:800}.kpi .value{font-size:clamp(28px,2.4vw,44px);font-weight:900;margin-top:12px}.kpi .sub{font-size:11px;color:var(--muted);margin-top:7px}
 .kpi.green{background:linear-gradient(180deg,rgba(0,105,67,.72),rgba(7,53,43,.88))}.kpi.red{background:linear-gradient(180deg,rgba(133,13,39,.76),rgba(61,9,23,.9))}.kpi.yellow{background:linear-gradient(180deg,rgba(121,84,4,.75),rgba(54,39,6,.9))}.kpi.purple{background:linear-gradient(180deg,rgba(76,38,123,.76),rgba(42,24,70,.9))}.kpi.cyan{background:linear-gradient(180deg,rgba(5,93,118,.74),rgba(4,48,62,.9))}
@@ -30,7 +30,7 @@ main{padding:16px 18px 24px}.view{display:none}.view.active{display:block}
 .sectionTitle{font-weight:900;padding:13px 15px 10px}.tableWrap{overflow:auto}
 table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;border-top:1px solid rgba(255,255,255,.07);text-align:center;font-size:13px}th{background:rgba(255,255,255,.03);color:#cfe1ed}td:first-child,th:first-child{text-align:left;padding-left:15px}
 .total{background:linear-gradient(90deg,rgba(227,24,55,.8),rgba(125,12,34,.7));font-weight:900}
-.pct{display:flex;align-items:center;gap:8px;min-width:145px}.bar{height:12px;flex:1;border-radius:99px;background:#213b4c;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#31df7a,#54ed91)}.bar.warn i{background:linear-gradient(90deg,#ffc631,#ffe16d)}
+.pct{display:flex;align-items:center;gap:8px;min-width:145px}#deptTable{min-width:0}#deptTable th,#deptTable td{padding:10px 6px}#deptTable th:first-child,#deptTable td:first-child{padding-left:12px}#deptTable .pct{min-width:120px}.bar{height:12px;flex:1;border-radius:99px;background:#213b4c;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#31df7a,#54ed91)}.bar.warn i{background:linear-gradient(90deg,#ffc631,#ffe16d)}
 .side{display:grid;gap:12px}.panel{padding:13px 15px}.alert{color:var(--yellow);font-weight:900}.panel ul{margin:8px 0 0 18px;padding:0}.panel li{margin:6px 0}
 .footer{margin-top:12px;overflow:hidden;border-radius:14px;position:relative;background:linear-gradient(90deg,var(--red),#8d0d29 55%,#0a1d2d 100%);box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 12px 34px rgba(227,24,55,.35)}
 .footer::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 60% 140% at 50% 50%,rgba(255,255,255,.16),transparent 70%);pointer-events:none}
@@ -86,7 +86,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 <section id="tvView" class="view active">
   <div class="headline">
     <div><h2>Daily Attendance & Manpower Overview</h2><p>People • Safety • Productivity • A stronger tomorrow</p></div>
-    <div><div class="live">● LIVE</div><div class="clock" id="clock"></div><div id="tvDate" style="margin-top:2px;font-size:13px;color:var(--muted);font-weight:700"></div><div id="tvShiftBadge" style="margin-top:4px;font-weight:800;color:#ffe173"></div></div>
+    <div><div class="live">● LIVE</div><div id="tvDate" style="margin-top:2px;font-size:13px;color:var(--muted);font-weight:700"></div><div id="tvShiftBadge" style="margin-top:4px;font-weight:800;color:#ffe173"></div></div>
   </div>
   <div class="kpis" id="kpiGrid"></div>
   <div class="dashboardGrid">
@@ -393,7 +393,7 @@ function renderAll(){renderTV();if(session)renderSupervisor();if(session?.role==
 async function init(){
  entryDate.value=iso();reportDate.value=iso();
  mgrDept.innerHTML=MGR_DEPTS.map(d=>`<option>${d}</option>`).join("");reportDept.innerHTML=`<option>All Departments</option>`+DEPTS.map(d=>`<option>${d}</option>`).join("");
- entryDate.addEventListener("change",loadMyEntry);setInterval(()=>clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"}),1000);clock.textContent=new Date().toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit"});
+ entryDate.addEventListener("change",loadMyEntry);let lastTick=Date.now(),bootAt=Date.now();const safeReload=()=>{fetch(location.href,{method:"HEAD",cache:"no-store"}).then(()=>location.reload()).catch(()=>{})};const onTick=()=>{const now=Date.now(),gap=now-lastTick;lastTick=now;if(!session&&(gap>60000||now-bootAt>1800000)){bootAt=now;safeReload()}};setInterval(onTick,1000);try{const w=new Worker(URL.createObjectURL(new Blob(["setInterval(()=>postMessage(1),1000)"],{type:"text/javascript"})));w.onmessage=onTick}catch(e){}document.addEventListener("visibilitychange",onTick);window.addEventListener("focus",onTick);window.addEventListener("pageshow",onTick);
 function renderTvDate(){tvDate.textContent=new Date().toLocaleDateString("en-MY",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}
 renderTvDate();setInterval(renderTvDate,60000);
  loadSession();
