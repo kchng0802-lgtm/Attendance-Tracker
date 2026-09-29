@@ -202,8 +202,8 @@ const SUPABASE_URL = "https://gbgxejgscquaovrxelfr.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3hlamdzY3F1YW92cnhlbGZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NDY4NzEsImV4cCI6MjEwMjIyMjg3MX0.nngpDcJDtPbC1K0HWBmH-BfHY8iqRcHXrxKMtY_nCBQ";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const DEPTS=["Receiving","Cycle Count","Training","P&P","Escalation","Technician","Shipping"];
-const MGR_DEPTS=DEPTS.concat(["Office / Mgmt"]); // admin logins can still be tagged Office/Mgmt; it's just not a tracked attendance department
+const DEPTS=["Receiving","Cycle Count","Training","P&P","Escalation","Technician","Shipping","Office / Mgmt"];
+const MGR_DEPTS=DEPTS.slice(); // every tracked department, including Office / Mgmt, can have a supervisor login
 const SHIFTS=["A","B"];
 let session=null;
 let ENTRIES={};   // {date:{dept:{shift:{planned,present,mc,annualLeave,otHours,remarks,updatedBy,updatedAt}}}}
