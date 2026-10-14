@@ -26,6 +26,12 @@ main{padding:16px 18px 24px}.view{display:none}.view.active{display:block}
 .kpis{display:grid;grid-template-columns:repeat(8,minmax(110px,1fr));gap:10px;margin-bottom:12px}
 .kpi{padding:13px;min-height:124px}.kpi .label{font-size:12px;font-weight:800}.kpi .value{font-size:clamp(28px,2.4vw,44px);font-weight:900;margin-top:12px}.kpi .sub{font-size:11px;color:var(--muted);margin-top:7px}
 .kpi.green{background:linear-gradient(180deg,rgba(0,105,67,.72),rgba(7,53,43,.88))}.kpi.red{background:linear-gradient(180deg,rgba(133,13,39,.76),rgba(61,9,23,.9))}.kpi.yellow{background:linear-gradient(180deg,rgba(121,84,4,.75),rgba(54,39,6,.9))}.kpi.purple{background:linear-gradient(180deg,rgba(76,38,123,.76),rgba(42,24,70,.9))}.kpi.cyan{background:linear-gradient(180deg,rgba(5,93,118,.74),rgba(4,48,62,.9))}
+.secLabel{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:800;letter-spacing:.16em;color:var(--muted);margin:0 2px 8px;text-transform:uppercase}.secLabel i{font-style:normal;letter-spacing:.04em;font-weight:700;text-transform:none}
+.hcRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.kpi.hcCard{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 30px;min-height:132px;border-left:5px solid rgba(255,255,255,.55)}
+.kpi.hcCard .label{font-size:16px;letter-spacing:.06em;text-transform:uppercase}
+.kpi.hcCard .sub{font-size:13px;margin-top:8px}
+.kpi.hcCard .value{font-size:clamp(56px,6vw,96px);line-height:1;margin:0;letter-spacing:-.02em}
 .dashboardGrid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(330px,.95fr);gap:12px}
 .sectionTitle{font-weight:900;padding:13px 15px 10px}.tableWrap{overflow:auto}
 table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;border-top:1px solid rgba(255,255,255,.07);text-align:center;font-size:13px}th{background:rgba(255,255,255,.03);color:#cfe1ed}td:first-child,th:first-child{text-align:left;padding-left:15px}
@@ -60,7 +66,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 .lightCard table{min-width:820px}.lightCard th,.lightCard td{border-top:1px solid #edf1f5;color:var(--ink)}.lightCard th{background:#f7f9fb}
 .toast{position:fixed;right:20px;bottom:20px;background:#102b3f;border:1px solid rgba(255,255,255,.12);padding:12px 16px;border-radius:12px;opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none}.toast.show{opacity:1;transform:none}
 @media(max-width:1200px){.kpis{grid-template-columns:repeat(4,1fr)}.dashboardGrid,.superGrid,.adminGrid{grid-template-columns:1fr}}
-@media(max-width:700px){.topbar{align-items:flex-start}.brand small{display:none}.nav{width:100%;justify-content:flex-start}main{padding:12px}.kpis{grid-template-columns:repeat(2,1fr)}.headline{flex-direction:column;align-items:flex-start}.formGrid2,.formGrid3{grid-template-columns:1fr}.miniGrid,.reportCards{grid-template-columns:repeat(2,1fr)}.reportFilters{grid-template-columns:1fr}}
+@media(max-width:700px){.hcRow{grid-template-columns:1fr}.topbar{align-items:flex-start}.brand small{display:none}.nav{width:100%;justify-content:flex-start}main{padding:12px}.kpis{grid-template-columns:repeat(2,1fr)}.headline{flex-direction:column;align-items:flex-start}.formGrid2,.formGrid3{grid-template-columns:1fr}.miniGrid,.reportCards{grid-template-columns:repeat(2,1fr)}.reportFilters{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -88,6 +94,9 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
     <div><h2>Daily Attendance & Manpower Overview</h2><p>People • Safety • Productivity • A stronger tomorrow</p></div>
     <div><div class="live">● LIVE</div><div id="tvDate" style="margin-top:2px;font-size:13px;color:var(--muted);font-weight:700"></div><div id="tvShiftBadge" style="margin-top:4px;font-weight:800;color:#ffe173"></div></div>
   </div>
+  <div class="secLabel"><span>Total Headcount</span><i id="hcStamp"></i></div>
+  <div class="hcRow" id="hcGrid"></div>
+  <div class="secLabel"><span>Today's Attendance</span></div>
   <div class="kpis" id="kpiGrid"></div>
   <div class="dashboardGrid">
     <div class="card">
@@ -158,6 +167,15 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 <!-- ADMIN -->
 <section id="adminView" class="view">
   <div class="headline"><div><h2>Department Management</h2><p>Create supervisor IDs and assign department access.</p></div><div><span class="badge">ADMIN ACCESS</span></div></div>
+  <div class="card adminCard" style="margin-bottom:14px">
+    <div class="sectionTitle" style="padding:0 0 10px">TOTAL HEADCOUNT (OFF + WORKING) — MANUAL ENTRY</div>
+    <div class="formGrid2">
+      <div class="field"><label>Current RP HC</label><input id="hcRp" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field"><label>Current BRCM HC</label><input id="hcBrcm" type="number" min="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="actions"><button class="btn primary" onclick="saveHeadcount()">Save Headcount</button></div>
+    <div class="notice" style="margin-top:12px" id="hcMeta">Shown on the TV dashboard KPI row. Update whenever the total headcount changes.</div>
+  </div>
   <div class="adminGrid">
     <div class="card adminCard">
       <div class="field"><label>Supervisor Name</label><input id="mgrName" placeholder="e.g. Ahmad"></div>
@@ -212,6 +230,7 @@ let session=null;
 let ENTRIES={};   // {date:{dept:{shift:{planned,present,mc,annualLeave,otHours,remarks,updatedBy,updatedAt}}}}
 let MANAGERS=[];  // [{login_id,name,pin_hash,dept,role,active}]
 let CURRENT_SHIFT="A";
+let HC={rp:0,brcm:0,updatedBy:"",updatedAt:null}; // manually entered total headcount (off + working)
 
 function iso(d=new Date()){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
 function fmtDate(s){return new Date(s+"T12:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short",year:"numeric"})}
@@ -245,11 +264,26 @@ async function loadEntries(){
  });
  ENTRIES=E
 }
+async function loadHeadcount(){
+ const {data,error}=await sb.from("attendance_headcount").select("*").eq("id","current").maybeSingle();
+ if(error){console.error(error);return}
+ if(data)HC={rp:n(data.rp_hc),brcm:n(data.brcm_hc),updatedBy:data.updated_by||"",updatedAt:data.updated_at}
+}
+async function saveHeadcount(){
+ if(session?.role!=="admin"){toast("Admin login required");return}
+ const rp=Math.floor(Number(hcRp.value)),br=Math.floor(Number(hcBrcm.value));
+ if(!Number.isFinite(rp)||!Number.isFinite(br)||rp<0||br<0||hcRp.value===""||hcBrcm.value===""){toast("Enter whole numbers (0 or more)");return}
+ const row={id:"current",rp_hc:rp,brcm_hc:br,updated_by:session.login_id,updated_at:new Date().toISOString()};
+ const {error}=await sb.from("attendance_headcount").upsert(row,{onConflict:"id"});
+ if(error){toast("Save failed - check connection");console.error(error);return}
+ HC={rp,brcm:br,updatedBy:row.updated_by,updatedAt:row.updated_at};
+ logAudit("update_headcount","current",{rp_hc:rp,brcm_hc:br});toast("Total headcount updated");renderAll()
+}
 async function logAudit(action,recordId,details){
  try{await sb.from("attendance_audit_log").insert({table_name:"attendance",record_id:String(recordId),action,employee_id:session?.login_id||null,employee_name:session?.name||null,details:details||null})}
  catch(e){console.error(e)}
 }
-async function refreshAll(){await Promise.all([loadManagers(),loadEntries(),loadShiftStatus()]);renderAll()}
+async function refreshAll(){await Promise.all([loadManagers(),loadEntries(),loadShiftStatus(),loadHeadcount()]);renderAll()}
 async function loadShiftStatus(){
  const {data,error}=await sb.from("attendance_shift_status").select("*").eq("id","current").maybeSingle();
  if(error){console.error(error);return}
@@ -300,6 +334,8 @@ function renderTV(){
   ["MC",t.mc,"red",t.planned?pct(100*t.mc/t.planned):"0.0%"],["Annual Leave",t.annualLeave,"yellow",t.planned?pct(100*t.annualLeave/t.planned):"0.0%"],
   ["OT Headcount",t.otHours,"cyan",(dot>=0?"+":"")+dot+" vs yesterday"],["Total Headcount Today",t.hcToday,"green",(dh>=0?"+":"")+dh+" vs yesterday"]
  ];
+ hcGrid.innerHTML=[["Current RP HC",HC.rp,"purple"],["Current BRCM HC",HC.brcm,"cyan"]].map(k=>`<div class="card kpi hcCard ${k[2]}"><div><div class="label">${k[0]}</div><div class="sub">Total headcount • off + working</div></div><div class="value">${k[1]}</div></div>`).join("");
+ hcStamp.textContent=HC.updatedAt?"Updated "+fmtDate(iso(new Date(HC.updatedAt)))+(HC.updatedBy?" • "+HC.updatedBy:""):"Not set yet";
  kpiGrid.innerHTML=ks.map(k=>`<div class="card kpi ${k[2]}"><div class="label">${k[0]}</div><div class="value">${k[1]}</div><div class="sub">${k[3]}</div></div>`).join("");
  tvShiftBadge.textContent="CURRENT SHIFT: "+CURRENT_SHIFT;
  const activeDepts=DEPTS.filter(dep=>(day[dep]||{})[CURRENT_SHIFT]);
@@ -340,6 +376,8 @@ function renderSupervisor(){
 }
 
 function renderAdmin(){
+ if(document.activeElement!==hcRp)hcRp.value=HC.rp;if(document.activeElement!==hcBrcm)hcBrcm.value=HC.brcm;
+ hcMeta.textContent=HC.updatedAt?"Last updated "+new Date(HC.updatedAt).toLocaleString("en-MY")+(HC.updatedBy?" by "+HC.updatedBy:"")+". Shown on the TV dashboard KPI row.":"Shown on the TV dashboard KPI row. Update whenever the total headcount changes.";
  managerTable.innerHTML=`<thead><tr><th>Name</th><th>Login ID</th><th>Department</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${managers().map((m,i)=>`<tr><td><b>${m.name}</b></td><td>${m.login_id}</td><td>${m.dept}</td><td>${m.role}</td><td class="${m.active?"statusOn":"statusOff"}">${m.active?"Active":"Inactive"}</td><td><button class="smallBtn" onclick="editManager(${i})">Edit</button> <button class="smallBtn warn" onclick="toggleManager(${i})">${m.active?"Disable":"Enable"}</button>${m.login_id!=="ADMIN"?` <button class="smallBtn danger" onclick="deleteManager(${i})">Delete</button>`:""}</td></tr>`).join("")}</tbody>`
 }
 function clearManagerForm(){mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="4–8 digits";mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
