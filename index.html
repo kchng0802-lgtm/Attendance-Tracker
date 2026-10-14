@@ -138,6 +138,15 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
       <button class="btn" id="setShiftBBtn" onclick="setCurrentShift('B')">Set Shift B</button>
     </div>
   </div>
+  <div class="card formCard" style="margin-bottom:14px">
+    <div class="sectionTitle" style="padding:0 0 10px">TOTAL HEADCOUNT (OFF + WORKING) — ALL TEAMS CAN UPDATE</div>
+    <div class="formGrid2">
+      <div class="field"><label>Current RP HC</label><input id="hcRp" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field"><label>Current BRCM HC</label><input id="hcBrcm" type="number" min="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="actions"><button class="btn primary" onclick="saveHeadcount()">Save Headcount</button></div>
+    <div class="notice" style="margin-top:12px" id="hcMeta">Shown on the TV dashboard KPI row. Update whenever the total headcount changes.</div>
+  </div>
   <div class="superGrid">
     <div class="card formCard">
       <div class="notice">You can update only the department assigned to your login ID.</div>
@@ -167,15 +176,6 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 <!-- ADMIN -->
 <section id="adminView" class="view">
   <div class="headline"><div><h2>Department Management</h2><p>Create supervisor IDs and assign department access.</p></div><div><span class="badge">ADMIN ACCESS</span></div></div>
-  <div class="card adminCard" style="margin-bottom:14px">
-    <div class="sectionTitle" style="padding:0 0 10px">TOTAL HEADCOUNT (OFF + WORKING) — MANUAL ENTRY</div>
-    <div class="formGrid2">
-      <div class="field"><label>Current RP HC</label><input id="hcRp" type="number" min="0" step="1" inputmode="numeric"></div>
-      <div class="field"><label>Current BRCM HC</label><input id="hcBrcm" type="number" min="0" step="1" inputmode="numeric"></div>
-    </div>
-    <div class="actions"><button class="btn primary" onclick="saveHeadcount()">Save Headcount</button></div>
-    <div class="notice" style="margin-top:12px" id="hcMeta">Shown on the TV dashboard KPI row. Update whenever the total headcount changes.</div>
-  </div>
   <div class="adminGrid">
     <div class="card adminCard">
       <div class="field"><label>Supervisor Name</label><input id="mgrName" placeholder="e.g. Ahmad"></div>
@@ -270,7 +270,7 @@ async function loadHeadcount(){
  if(data)HC={rp:n(data.rp_hc),brcm:n(data.brcm_hc),updatedBy:data.updated_by||"",updatedAt:data.updated_at}
 }
 async function saveHeadcount(){
- if(session?.role!=="admin"){toast("Admin login required");return}
+ if(!session){toast("Please log in first");return}
  const rp=Math.floor(Number(hcRp.value)),br=Math.floor(Number(hcBrcm.value));
  if(!Number.isFinite(rp)||!Number.isFinite(br)||rp<0||br<0||hcRp.value===""||hcBrcm.value===""){toast("Enter whole numbers (0 or more)");return}
  const row={id:"current",rp_hc:rp,brcm_hc:br,updated_by:session.login_id,updated_at:new Date().toISOString()};
@@ -368,7 +368,9 @@ async function saveEntry(){
  toast(session.dept+" (Shift "+sh+") updated");renderAll();loadMyEntry()
 }
 function renderSupervisor(){
- if(!session)return;superSubtitle.textContent="Assigned department: "+session.dept;userBadge.textContent=session.name+" • "+session.login_id;lockedDept.value=session.dept;
+ if(!session)return;
+ if(document.activeElement!==hcRp)hcRp.value=HC.rp;if(document.activeElement!==hcBrcm)hcBrcm.value=HC.brcm;
+ hcMeta.textContent=HC.updatedAt?"Last updated "+new Date(HC.updatedAt).toLocaleString("en-MY")+(HC.updatedBy?" by "+HC.updatedBy:"")+". Shown on the TV dashboard KPI row.":"Shown on the TV dashboard KPI row. Update whenever the total headcount changes.";superSubtitle.textContent="Assigned department: "+session.dept;userBadge.textContent=session.name+" • "+session.login_id;lockedDept.value=session.dept;
  curShiftLabel.textContent="Shift "+CURRENT_SHIFT;setShiftABtn.classList.toggle("primary",CURRENT_SHIFT==="A");setShiftBBtn.classList.toggle("primary",CURRENT_SHIFT==="B");
  const date=entryDate.value||iso(),sh=CURRENT_SHIFT,r=(((db()[date]||{})[session.dept]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=pr+n(r.otHours);
  miniGrid.innerHTML=[["Total HC",pl],["Present",pr],["Attendance",pct(a)],["Total Headcount Today",g]].map(x=>`<div class="mini"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
@@ -376,8 +378,6 @@ function renderSupervisor(){
 }
 
 function renderAdmin(){
- if(document.activeElement!==hcRp)hcRp.value=HC.rp;if(document.activeElement!==hcBrcm)hcBrcm.value=HC.brcm;
- hcMeta.textContent=HC.updatedAt?"Last updated "+new Date(HC.updatedAt).toLocaleString("en-MY")+(HC.updatedBy?" by "+HC.updatedBy:"")+". Shown on the TV dashboard KPI row.":"Shown on the TV dashboard KPI row. Update whenever the total headcount changes.";
  managerTable.innerHTML=`<thead><tr><th>Name</th><th>Login ID</th><th>Department</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${managers().map((m,i)=>`<tr><td><b>${m.name}</b></td><td>${m.login_id}</td><td>${m.dept}</td><td>${m.role}</td><td class="${m.active?"statusOn":"statusOff"}">${m.active?"Active":"Inactive"}</td><td><button class="smallBtn" onclick="editManager(${i})">Edit</button> <button class="smallBtn warn" onclick="toggleManager(${i})">${m.active?"Disable":"Enable"}</button>${m.login_id!=="ADMIN"?` <button class="smallBtn danger" onclick="deleteManager(${i})">Delete</button>`:""}</td></tr>`).join("")}</tbody>`
 }
 function clearManagerForm(){mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="4–8 digits";mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
