@@ -118,7 +118,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
     <div class="card loginCard">
       <h3>Supervisor Login</h3><p>Use your assigned Login ID and PIN.</p>
       <div class="field"><label>Login ID</label><input id="loginId" placeholder="e.g. RCV-SUP01"></div>
-      <div class="field"><label>PIN</label><input id="loginPin" type="password" inputmode="numeric" placeholder="4–8 digit PIN"></div>
+      <div class="field"><label>PIN</label><input id="loginPin" type="password" inputmode="numeric" autocomplete="off" placeholder="4–8 digit PIN" onkeydown="if(event.key==='Enter')login()"></div>
       <button class="btn primary" style="width:100%" onclick="login()">Login</button>
       <div id="loginError" style="color:#ff7b84;font-size:12px;margin-top:8px"></div>
     </div>
@@ -180,11 +180,11 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
     <div class="card adminCard">
       <div class="field"><label>Supervisor Name</label><input id="mgrName" placeholder="e.g. Ahmad"></div>
       <div class="field"><label>Login ID</label><input id="mgrId" placeholder="e.g. RCV-SUP02"></div>
-      <div class="field"><label>PIN</label><input id="mgrPin" inputmode="numeric" placeholder="4–8 digits"></div>
       <div class="field"><label>Assigned Department</label><select id="mgrDept"></select></div>
+      <div class="field"><label>PIN</label><input id="mgrPin" inputmode="numeric" autocomplete="off" placeholder="4–8 digits"></div>
       <div class="field"><label>Role</label><select id="mgrRole"><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select></div>
       <div class="actions"><button class="btn primary" onclick="saveManager()">Save Login</button><button class="btn ghost" onclick="clearManagerForm()">Clear</button></div>
-      <div class="notice" style="margin-top:12px">For production, move login security to Supabase Auth + Row Level Security.</div>
+      <div class="notice" style="margin-top:12px">Logins are stored in the Airtable Managers table. Keep the Airtable base private and the access token limited to this base.</div>
     </div>
     <div class="card">
       <div class="sectionTitle">SUPERVISOR / DEPARTMENT ACCESS</div>
@@ -213,14 +213,127 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-/* ---- Supabase ---- */
-const SUPABASE_URL = "https://gbgxejgscquaovrxelfr.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3hlamdzY3F1YW92cnhlbGZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NDY4NzEsImV4cCI6MjEwMjIyMjg3MX0.nngpDcJDtPbC1K0HWBmH-BfHY8iqRcHXrxKMtY_nCBQ";
-const SB_AUTH={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}; // anon-only app: no auth storage/locks, so requests cannot hang waiting on a browser lock
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_rRFZ2LTo-pLYlagzygkTXQ_9U6y-d4f"; // second public key for the same project; only used if a network filter blocks the first one
-let sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, SB_AUTH);
+/* ---- Airtable ---- */
+const AIRTABLE_BASE_ID = "";  // optional: paste the base id (starts with app) here, or leave empty and use the one-time setup screen on each device
+const AIRTABLE_TOKEN   = "";  // optional: personal access token (starts with pat). Anyone who can open this file can read it - the setup screen keeps it only on that device
+const AT_REFRESH_MS    = 180000; // live refresh every 3 minutes: keeps API calls within the Airtable plan limit
+const AT_RECENT_DAYS   = 3;      // refreshes only load today + this many previous days; History loads everything on demand
+
+function atCfg(){
+ if(AIRTABLE_BASE_ID&&AIRTABLE_TOKEN)return {base:AIRTABLE_BASE_ID,token:AIRTABLE_TOKEN};
+ try{
+  const h=location.hash.match(/cfg=([^&]+)/); // one-time setup link: page.html#cfg=<base64 of base|token>
+  if(h){const p=atob(decodeURIComponent(h[1])).split("|");if(/^app/.test(p[0])&&/^pat/.test(p[1])){localStorage.setItem("bc_at_cfg",JSON.stringify({base:p[0],token:p[1]}));try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}}}
+  const c=JSON.parse(localStorage.getItem("bc_at_cfg")||"null");if(c&&c.base&&c.token)return c;
+ }catch(e){}
+ return {base:"",token:""};
+}
+const AT=atCfg();
+function atConfigured(){return !!(AT.base&&AT.token)}
+
+async function atFetch(path,opt){
+ opt=opt||{};
+ const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),15000);
+ try{
+  const r=await fetch("https://api.airtable.com/v0/"+AT.base+"/"+path,Object.assign({},opt,{headers:Object.assign({Authorization:"Bearer "+AT.token,"Content-Type":"application/json"},opt.headers||{}),signal:ctl.signal}));
+  const txt=await r.text();let j=null;try{j=JSON.parse(txt)}catch(e){}
+  if(!r.ok){const m=(j&&j.error&&(j.error.message||j.error.type||j.error))||("HTTP "+r.status);const e=new Error("Airtable: "+m+" (HTTP "+r.status+")");e.status=r.status;throw e}
+  if(j===null)throw new Error("the network returned a web page instead of data - firewall/proxy");
+  return j;
+ }catch(e){if(e.name==="AbortError")throw new Error("Airtable did not reply within 15 seconds");throw e}
+ finally{clearTimeout(t)}
+}
+async function atList(table,params){
+ let out=[],offset=null;
+ do{const qs=new URLSearchParams(Object.assign({pageSize:"100"},params||{}));if(offset)qs.set("offset",offset);
+  const j=await atFetch(encodeURIComponent(table)+"?"+qs.toString());out=out.concat(j.records||[]);offset=j.offset}while(offset);
+ return out;
+}
+const atUpsert=(table,mergeOn,fields)=>atFetch(encodeURIComponent(table),{method:"PATCH",body:JSON.stringify({performUpsert:{fieldsToMergeOn:mergeOn},typecast:true,records:[{fields}]})});
+const atYes=v=>v===true||/^(yes|true|1|checked)$/i.test(String(v||""));
+function atDays(fromIso){const out=[],d=new Date(fromIso+"T12:00:00"),end=new Date();end.setDate(end.getDate()+1);while(iso(d)<=iso(end)){out.push(iso(d));d.setDate(d.getDate()+1)}return out}
+
+/* Minimal stand-in for the previous database client: the rest of the page keeps using sb.from(...) unchanged */
+const AT_TABLES={attendance_managers:"Managers",attendance_entries:"Entries",attendance_headcount:"Settings",attendance_shift_status:"Settings",attendance_audit_log:null};
+let _setP=null,_setT=0;
+function atSettings(){if(_setP&&Date.now()-_setT<4000)return _setP;_setT=Date.now();_setP=atList("Settings").catch(e=>{_setP=null;throw e});return _setP}
+async function atRun(q){
+ try{
+  if(AT_TABLES[q.t]===null)return {data:null,error:null}; // audit log is not kept in Airtable (saves records and API calls)
+  if(q.t==="attendance_shift_status"||q.t==="attendance_headcount"){
+   const key=q.t==="attendance_shift_status"?"shift":"headcount";
+   if(q.op==="select"){
+    const rec=(await atSettings()).find(r=>r.fields.key===key);if(!rec)return {data:null,error:null};const f=rec.fields;
+    return {data:key==="shift"?{id:"current",shift:f.shift,updated_by:f.updated_by,updated_at:f.updated_at}:{id:"current",rp_hc:Number(f.rp_hc||0),brcm_hc:Number(f.brcm_hc||0),updated_by:f.updated_by,updated_at:f.updated_at},error:null};
+   }
+   const p=q.payload;_setP=null;
+   await atUpsert("Settings",["key"],key==="shift"?{key,shift:p.shift,updated_by:p.updated_by,updated_at:p.updated_at}:{key,rp_hc:p.rp_hc,brcm_hc:p.brcm_hc,updated_by:p.updated_by,updated_at:p.updated_at});
+   return {data:null,error:null};
+  }
+  if(q.t==="attendance_managers"){
+   const toF=o=>{const f={};["login_id","name","dept","role","pin_hash"].forEach(k=>{if(o[k]!==undefined)f[k]=o[k]});if(o.active!==undefined)f.active=o.active?"yes":"no";return f};
+   const eq=(q.filters.find(x=>x[0]==="eq"&&x[1]==="login_id")||[])[2];
+   const rid=eq?((typeof MANAGERS!=="undefined"?MANAGERS:[]).find(m=>m.login_id===eq)||{})._rid:null;
+   if(q.op==="select"){
+    const recs=await atList("Managers");
+    return {data:recs.map(r=>({_rid:r.id,login_id:r.fields.login_id,name:r.fields.name,dept:r.fields.dept,role:r.fields.role,pin_hash:r.fields.pin_hash||"",active:atYes(r.fields.active)})).filter(m=>m.login_id).sort((a,b)=>a.login_id.localeCompare(b.login_id)),error:null};
+   }
+   if(q.op==="insert"){await atFetch("Managers",{method:"POST",body:JSON.stringify({typecast:true,records:[{fields:toF(q.payload)}]})});return {data:null,error:null}}
+   if(q.op==="update"){
+    if(rid)await atFetch("Managers",{method:"PATCH",body:JSON.stringify({typecast:true,records:[{id:rid,fields:toF(q.payload)}]})});
+    else await atUpsert("Managers",["login_id"],Object.assign({login_id:eq},toF(q.payload)));
+    return {data:null,error:null};
+   }
+   if(q.op==="delete"){if(rid)await atFetch("Managers?records[]="+encodeURIComponent(rid),{method:"DELETE"});return {data:null,error:null}}
+  }
+  if(q.t==="attendance_entries"){
+   if(q.op==="select"){
+    const g=q.filters.find(x=>x[0]==="gte"&&x[1]==="entry_date"),params={};
+    if(g)params.filterByFormula="OR("+atDays(g[2]).map(d=>'LEFT({key},10)="'+d+'"').join(",")+")";
+    const recs=await atList("Entries",params);
+    return {data:recs.map(r=>{const f=r.fields;return {entry_date:String(f.entry_date||"").slice(0,10),dept:f.dept,shift:f.shift,planned:f.planned,present:f.present,mc:f.mc,annual_leave:f.annual_leave,ot_headcount:f.ot_headcount,remarks:f.remarks,updated_by:f.updated_by,updated_at:f.updated_at}}).filter(r=>r.entry_date&&r.dept&&r.shift),error:null};
+   }
+   if(q.op==="upsert"){
+    const p=q.payload;
+    await atUpsert("Entries",["key"],{key:p.entry_date+"|"+p.dept+"|"+p.shift,entry_date:p.entry_date,dept:p.dept,shift:p.shift,planned:p.planned,present:p.present,mc:p.mc,annual_leave:p.annual_leave,ot_headcount:p.ot_headcount,remarks:p.remarks||"",updated_by:p.updated_by,updated_at:p.updated_at});
+    return {data:null,error:null};
+   }
+  }
+  throw new Error("unsupported operation "+q.op+" on "+q.t);
+ }catch(e){return {data:null,error:e}}
+}
+function atFrom(t){
+ const q={t,op:"select",filters:[],payload:null},o={
+  select(){return o},order(){return o},
+  eq(c,v){q.filters.push(["eq",c,v]);return o},in(c,v){q.filters.push(["in",c,v]);return o},gte(c,v){q.filters.push(["gte",c,v]);return o},
+  update(v){q.op="update";q.payload=v;return o},insert(v){q.op="insert";q.payload=v;return o},upsert(v){q.op="upsert";q.payload=v;return o},delete(){q.op="delete";return o},
+  maybeSingle(){return atRun(q)},then(a,b){return atRun(q).then(a,b)}
+ };return o;
+}
+const sb={from:atFrom};
+
+/* One-time connection screen (shown only when this device has no Airtable settings yet) */
+function showAtSetup(){
+ const d=document.createElement("div");d.style.cssText="position:fixed;inset:0;z-index:9999;background:#06131f;display:grid;place-items:center;padding:20px;overflow:auto";
+ const css="width:100%;box-sizing:border-box;padding:12px;margin:6px 0 14px;border-radius:8px;border:1px solid #2a4a68;background:#081a2a;color:#fff;font-size:14px";
+ d.innerHTML='<div style="max-width:580px;width:100%;background:#10283f;border-radius:14px;padding:26px;color:#e8f1fa;font-family:Segoe UI,Arial,sans-serif"><h2 style="margin:0 0 6px">Connect to Airtable</h2><p style="color:#9db4c8;margin:0 0 16px">Enter the Airtable base ID and access token once on this device.</p><label>Base ID (starts with app)</label><input id="atBase" style="'+css+'" placeholder="appXXXXXXXXXXXXXX"><label>Access token (starts with pat)</label><input id="atTok" type="password" style="'+css+'" placeholder="patXXXXXXXX..."><button id="atGo" style="padding:12px 22px;border:0;border-radius:8px;background:#d3153b;color:#fff;font-size:15px;cursor:pointer">Connect</button><div id="atMsg" style="margin-top:14px;color:#ff727c;min-height:20px;word-break:break-word"></div></div>';
+ document.body.appendChild(d);
+ d.querySelector("#atGo").onclick=async()=>{
+  const b=d.querySelector("#atBase").value.trim(),t=d.querySelector("#atTok").value.trim(),m=d.querySelector("#atMsg");
+  if(!/^app/.test(b)||!/^pat/.test(t)){m.textContent="The base ID must start with app and the token with pat.";return}
+  m.style.color="#9db4c8";m.textContent="Testing connection...";
+  try{
+   const r=await fetch("https://api.airtable.com/v0/"+b+"/Settings?maxRecords=1",{headers:{Authorization:"Bearer "+t}});const txt=await r.text();let j=null;try{j=JSON.parse(txt)}catch(e){}
+   if(!r.ok){m.style.color="#ff727c";m.textContent="Airtable said: "+((j&&j.error&&(j.error.message||j.error.type))||("HTTP "+r.status))+". Check the base ID, the token's access and that a table called Settings exists.";return}
+   if(!j){m.style.color="#ff727c";m.textContent="The network returned a web page instead of Airtable data (firewall or proxy).";return}
+  }catch(e){m.style.color="#ff727c";m.textContent="Could not reach Airtable ("+e.message+").";return}
+  localStorage.setItem("bc_at_cfg",JSON.stringify({base:b,token:t}));
+  const link=location.href.split("#")[0]+"#cfg="+encodeURIComponent(btoa(b+"|"+t));
+  d.querySelector("div").innerHTML='<h2 style="margin:0 0 8px;color:#54ed91">Connected</h2><p style="color:#9db4c8">To connect another screen or phone, open this setup link on it once. It contains the token, so share it only with people who should have access.</p><textarea readonly style="'+css+';height:90px">'+link+'</textarea><button id="atOpen" style="padding:12px 22px;border:0;border-radius:8px;background:#d3153b;color:#fff;font-size:15px;cursor:pointer">Open dashboard</button>';
+  d.querySelector("#atOpen").onclick=()=>location.reload();
+ };
+}
 
 const MERGED_DEPT="Receiving & Cycle Count";
 const LEGACY_DEPTS=["Receiving","Cycle Count"]; // old names, folded into MERGED_DEPT
@@ -240,45 +353,31 @@ function n(v){return Number(v||0)} function pct(v){return (Math.round(v*10)/10).
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1500)}
 async function sha256Hex(str){const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("")}
 
-/* ---- Data access (Supabase-backed; shared across every device) ---- */
+/* ---- Data access (Airtable-backed; shared across every device) ---- */
 function db(){return ENTRIES}
 function managers(){return MANAGERS}
 
-async function fetchManagers(key){
- const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),10000);
- try{const headers={apikey:key};if(key.startsWith("eyJ"))headers.Authorization="Bearer "+key;
-  const r=await fetch(SUPABASE_URL+"/rest/v1/attendance_managers?select=*&order=login_id",{headers,signal:ctl.signal});
-  const txt=await r.text();
-  if(!r.ok)throw new Error("HTTP "+r.status);
-  let j;try{j=JSON.parse(txt)}catch(e){throw new Error("the network returned a web page instead of data - firewall/proxy")}
-  return j||[]}
- finally{clearTimeout(t)}
-}
-async function loadManagersDirect(){ // plain fetch with timeout + second key as fallback, so a blocked/stuck connection shows a clear error
- let firstErr;
- for(const key of [SUPABASE_ANON_KEY,SUPABASE_PUBLISHABLE_KEY]){
-  try{const rows=await fetchManagers(key);MANAGERS=rows.map(m=>({...m,dept:normDept(m.dept)}));
-   if(key!==SUPABASE_ANON_KEY){sb=supabase.createClient(SUPABASE_URL,key,SB_AUTH);try{refreshAll()}catch(e){}}
-   return}
-  catch(e){if(!firstErr)firstErr=e}
- }
- throw firstErr
-}
 async function loadManagers(){
  const {data,error}=await sb.from("attendance_managers").select("*").order("login_id");
- if(error){toast("Could not load logins");console.error(error);return}
- MANAGERS=(data||[]).map(m=>({...m,dept:normDept(m.dept)}))
+ if(error){console.error(error);return error.message||String(error)}
+ MANAGERS=(data||[]).map(m=>({...m,dept:normDept(m.dept)}));return ""
 }
-async function loadEntries(){
- const {data,error}=await sb.from("attendance_entries").select("*");
+let ENTRY_ROWS=[],ENTRIES_FULL=false,FULL_TRIED=false;
+function recentCutoff(){const d=new Date();d.setDate(d.getDate()-AT_RECENT_DAYS);return iso(d)}
+async function loadEntries(full){
+ const cutoff=recentCutoff();
+ let q=sb.from("attendance_entries").select("*");if(!full)q=q.gte("entry_date",cutoff);
+ const {data,error}=await q;
  if(error){toast("Could not load attendance data");console.error(error);return}
+ const rows=data||[];
+ if(full){ENTRY_ROWS=rows;ENTRIES_FULL=true}else ENTRY_ROWS=ENTRY_ROWS.filter(r=>r.entry_date<cutoff).concat(rows);
  const E={};
- (data||[]).forEach(r=>{
+ ENTRY_ROWS.forEach(r=>{
   if(!E[r.entry_date])E[r.entry_date]={};
   const dp=normDept(r.dept);
   if(!E[r.entry_date][dp])E[r.entry_date][dp]={};
   const cur=E[r.entry_date][dp][r.shift],rec={planned:n(r.planned),present:n(r.present),mc:n(r.mc),annualLeave:n(r.annual_leave),otHours:n(r.ot_headcount),remarks:r.remarks,updatedBy:r.updated_by,updatedAt:r.updated_at};
-  if(cur){ // old Receiving + Cycle Count rows for the same date/shift -> add together
+  if(cur){
    ["planned","present","mc","annualLeave","otHours"].forEach(k=>cur[k]=n(cur[k])+rec[k]);
    cur.remarks=[cur.remarks,rec.remarks].filter(Boolean).join(" | ");
    if((rec.updatedAt||"")>(cur.updatedAt||"")){cur.updatedBy=rec.updatedBy;cur.updatedAt=rec.updatedAt}
@@ -305,7 +404,7 @@ async function logAudit(action,recordId,details){
  try{await sb.from("attendance_audit_log").insert({table_name:"attendance",record_id:String(recordId),action,employee_id:session?.login_id||null,employee_name:session?.name||null,details:details||null})}
  catch(e){console.error(e)}
 }
-async function refreshAll(){await Promise.all([loadManagers(),loadEntries(),loadShiftStatus(),loadHeadcount()]);renderAll()}
+async function refreshAll(force){await Promise.all([(force||!MANAGERS.length)?loadManagers():null,loadEntries(),loadShiftStatus(),loadHeadcount()]);renderAll()}
 async function loadShiftStatus(){
  const {data,error}=await sb.from("attendance_shift_status").select("*").eq("id","current").maybeSingle();
  if(error){console.error(error);return}
@@ -330,22 +429,24 @@ function switchView(v){
  const b={tv:"tvBtn",login:"loginBtn",supervisor:"updateBtn",admin:"adminBtn",history:"historyBtn"}[v];document.getElementById(b)?.classList.add("active");
  if(v==="supervisor"){renderSupervisor();loadMyEntry()}
  if(v==="admin")renderAdmin();
- if(v==="history")renderHistory()
+ if(v==="history"){renderHistory();loadEntries(true).then(()=>renderHistory())}
 }
 function applySession(){
  const logged=!!session;loginBtn.classList.toggle("hidden",logged);logoutBtn.classList.toggle("hidden",!logged);
  updateBtn.classList.toggle("hidden",!logged);adminBtn.classList.toggle("hidden",!(logged&&session.role==="admin"));historyBtn.classList.toggle("hidden",!(logged&&session.role==="admin"))
 }
-async function login(){try{await loginCore()}catch(e){console.error(e);loginError.textContent=(typeof supabase==="undefined")?"Cannot load the Supabase library (cdn.jsdelivr.net is blocked on this network/browser). Try another network or browser.":"Login error: "+e.message}}
+async function login(){try{await loginCore()}catch(e){console.error(e);loginError.textContent="Login error: "+e.message}}
 async function loginCore(){
  const id=loginId.value.trim().toUpperCase(),pin=loginPin.value.trim();
  if(!id||!pin){loginError.textContent="Enter your Login ID and PIN.";return}
- if(!MANAGERS.length){loginError.textContent="Loading logins...";let why="";try{await loadManagersDirect()}catch(e){console.error(e);why=e.name==="AbortError"?"no reply within 10 seconds":(e.message||String(e))}
-  if(!MANAGERS.length&&!why)why="no logins returned";
-  if(!MANAGERS.length){loginError.textContent="Cannot load logins from the server ("+why+"). Check internet/firewall access to supabase.co, then press Refresh and try again.";return}}
- const hash=await sha256Hex(pin);
- const m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.pin_hash===hash&&x.active);
+ if(!MANAGERS.length){loginError.textContent="Loading logins...";const why=await loadManagers();
+  if(!MANAGERS.length){loginError.textContent="Cannot load logins from Airtable ("+(why||"no logins returned")+"). Check the internet connection and the Airtable settings, then press Refresh and try again.";return}}
+ let m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.active);
+ if(!m){await loadManagers();m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.active)} // a login added on another device may not be loaded yet
  if(!m){loginError.textContent="Invalid or inactive Login ID / PIN.";return}
+ if(!m.pin_hash||m.pin_hash==="none"){loginError.textContent="No PIN is set for this login yet. Ask an admin to set one.";return}
+ if(await sha256Hex(pin)!==m.pin_hash){loginError.textContent="Invalid or inactive Login ID / PIN.";return}
+ loginPin.value="";
  session={login_id:m.login_id,name:m.name,dept:normDept(m.dept),role:m.role};sessionStorage.setItem("bc_final_session",JSON.stringify(session));loginError.textContent="";applySession();toast("Welcome "+m.name);switchView(m.role==="admin"?"admin":"supervisor")
 }
 function logout(){session=null;sessionStorage.removeItem("bc_final_session");applySession();toast("Logged out");switchView("tv")}
@@ -377,7 +478,9 @@ function renderTV(){
 }
 
 function loadMyEntry(){
- if(!session)return;const date=entryDate.value||iso(),sh=CURRENT_SHIFT,r=(((db()[date]||{})[session.dept]||{})[sh])||{};
+ if(!session)return;const date=entryDate.value||iso(),sh=CURRENT_SHIFT;
+ if(date<recentCutoff()&&!ENTRIES_FULL&&!FULL_TRIED){FULL_TRIED=true;loadEntries(true).then(()=>loadMyEntry());return}
+ const r=(((db()[date]||{})[session.dept]||{})[sh])||{};
  lockedDept.value=session.dept;planned.value=r.planned??0;present.value=r.present??0;mc.value=r.mc??0;annualLeave.value=r.annualLeave??0;otHours.value=r.otHours??0;remarks.value=r.remarks??"";renderSupervisor()
 }
 async function saveEntry(){
@@ -386,7 +489,6 @@ async function saveEntry(){
  if(row.present>row.planned&&row.planned>0&&!confirm("Present is higher than planned. Save anyway?"))return;
  const {error}=await sb.from("attendance_entries").upsert(row,{onConflict:"entry_date,dept,shift"});
  if(error){toast("Save failed - check connection");console.error(error);return}
- if(session.dept===MERGED_DEPT){try{await sb.from("attendance_entries").delete().eq("entry_date",date).eq("shift",sh).in("dept",LEGACY_DEPTS)}catch(e){console.error(e)}} // saved total replaces old separate rows
  if(!ENTRIES[date])ENTRIES[date]={};
  if(!ENTRIES[date][session.dept])ENTRIES[date][session.dept]={};
  ENTRIES[date][session.dept][sh]={planned:row.planned,present:row.present,mc:row.mc,annualLeave:row.annual_leave,otHours:row.ot_headcount,remarks:row.remarks,updatedBy:row.updated_by,updatedAt:row.updated_at};
@@ -406,23 +508,22 @@ function renderSupervisor(){
 function renderAdmin(){
  managerTable.innerHTML=`<thead><tr><th>Name</th><th>Login ID</th><th>Department</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${managers().map((m,i)=>`<tr><td><b>${m.name}</b></td><td>${m.login_id}</td><td>${m.dept}</td><td>${m.role}</td><td class="${m.active?"statusOn":"statusOff"}">${m.active?"Active":"Inactive"}</td><td><button class="smallBtn" onclick="editManager(${i})">Edit</button> <button class="smallBtn warn" onclick="toggleManager(${i})">${m.active?"Disable":"Enable"}</button>${m.login_id!=="ADMIN"?` <button class="smallBtn danger" onclick="deleteManager(${i})">Delete</button>`:""}</td></tr>`).join("")}</tbody>`
 }
-function clearManagerForm(){mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="4–8 digits";mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
-function editManager(i){const m=managers()[i];mgrName.value=m.name;mgrId.value=m.login_id;mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="Leave blank to keep current PIN";mgrDept.value=m.dept;mgrRole.value=m.role;mgrId.dataset.edit=String(i)}
+function clearManagerForm(){mgrPin.value="";mgrPin.placeholder="4–8 digits";mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
+function editManager(i){const m=managers()[i];mgrPin.value="";mgrPin.placeholder="Leave blank to keep current PIN";mgrName.value=m.name;mgrId.value=m.login_id;mgrId.readOnly=false;mgrDept.value=m.dept;mgrRole.value=m.role;mgrId.dataset.edit=String(i)}
 async function saveManager(){
  const name=mgrName.value.trim(),id=mgrId.value.trim().toUpperCase(),pin=mgrPin.value.trim(),dept=mgrDept.value,role=mgrRole.value;
+ if(pin&&!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
  if(!name||!id)return alert("Please complete name and Login ID.");
  const edit=mgrId.dataset.edit;
  if(!edit){
-  if(!pin)return alert("PIN is required for a new login.");
-  if(!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
   if(managers().some(x=>x.login_id===id))return alert("Login ID already exists.");
+  if(!pin)return alert("A PIN is required for a new login.");
   const pin_hash=await sha256Hex(pin);
   const {error}=await sb.from("attendance_managers").insert({login_id:id,name,pin_hash,dept,role,active:true});
   if(error){toast("Save failed");console.error(error);return}
   logAudit("create_manager",id,{name,dept,role})
  }else{
   const idx=Number(edit),existing=managers()[idx];
-  if(pin&&!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
   if(id!==existing.login_id&&managers().some(x=>x.login_id===id&&x.login_id!==existing.login_id))return alert("Login ID already exists.");
   const update={login_id:id,name,dept,role};if(pin)update.pin_hash=await sha256Hex(pin);
   const {error}=await sb.from("attendance_managers").update(update).eq("login_id",existing.login_id);
@@ -462,7 +563,7 @@ function exportCSV(){
  const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="broadcom_attendance_history.csv";a.click();URL.revokeObjectURL(url)
 }
 async function toggleFullscreen(){if(!document.fullscreenElement)await document.documentElement.requestFullscreen().catch(()=>{});else await document.exitFullscreen().catch(()=>{})}
-async function manualRefresh(){await refreshAll();toast("Refreshed")}
+async function manualRefresh(){await refreshAll(true);if(ENTRIES_FULL&&session?.role==="admin"){await loadEntries(true);renderAll()}toast("Refreshed")}
 function renderAll(){renderTV();if(session)renderSupervisor();if(session?.role==="admin"){renderAdmin();renderHistory()}}
 async function init(){
  entryDate.value=iso();reportDate.value=iso();
@@ -471,8 +572,11 @@ async function init(){
 function renderTvDate(){tvDate.textContent=new Date().toLocaleDateString("en-MY",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}
 renderTvDate();setInterval(renderTvDate,60000);
  loadSession();
+ if(!atConfigured()){showAtSetup();return}
  await refreshAll();
- setInterval(refreshAll,20000) // keeps every screen/device in sync without needing a manual refresh
+ let lastRefresh=Date.now();const tickRefresh=async()=>{if(document.hidden)return;lastRefresh=Date.now();try{await refreshAll()}catch(e){console.error(e)}};
+ setInterval(tickRefresh,AT_REFRESH_MS); // keeps every screen in sync; paused while the tab is hidden to save Airtable API calls
+ document.addEventListener("visibilitychange",()=>{if(!document.hidden&&Date.now()-lastRefresh>60000)tickRefresh()})
 }
 window.addEventListener("DOMContentLoaded",init)
 </script>
