@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Broadcom Warehouse Attendance System</title>
+<style>
+:root{
+  --bg:#06131f;--panel:#0b1f31;--panel2:#10283b;--line:#29475e;--text:#f7fbff;--muted:#9fb6c8;
+  --red:#e31837;--red2:#a50f29;--green:#31d97c;--yellow:#ffcc33;--cyan:#32c5e7;--purple:#ad83ff;--blue:#5fa8ff;
+  --white:#fff;--light:#f5f7fb;--ink:#14263d;--shadow:0 14px 34px rgba(0,0,0,.25);--radius:16px
+}
+*{box-sizing:border-box}
+html,body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:#04101a;color:var(--text)}
+button,input,select,textarea{font:inherit}.hidden{display:none!important}
+body{min-height:100vh;background:radial-gradient(circle at 86% 0%,rgba(227,24,55,.22),transparent 26%),linear-gradient(180deg,#071725,#04101a)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(6,19,31,.94);backdrop-filter:blur(14px);position:sticky;top:0;z-index:50}
+.brand{display:flex;align-items:center;gap:12px}.brandMark{display:grid;place-items:center;background:#fff;border-radius:9px;padding:6px 10px}.brandMark img{height:24px;width:auto;display:block}.brand h1{margin:0;font-size:22px;letter-spacing:.05em}.brand small{color:var(--muted)}
+.nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.btn{border:1px solid rgba(255,255,255,.13);background:#10283b;color:#fff;padding:9px 13px;border-radius:11px;cursor:pointer}
+.btn.primary{background:linear-gradient(135deg,var(--red),var(--red2));border-color:transparent}.btn.ghost{background:transparent}.btn.active{outline:2px solid #fff;outline-offset:2px}
+main{padding:16px 18px 24px}.view{display:none}.view.active{display:block}
+.card{background:linear-gradient(180deg,rgba(18,48,71,.98),rgba(8,29,45,.98));border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);box-shadow:var(--shadow)}
+.headline{display:flex;justify-content:space-between;align-items:end;gap:14px;margin-bottom:13px}.headline h2{margin:0;font-size:clamp(22px,2.3vw,34px)}.headline p{margin:5px 0 0;color:var(--muted)}
+.clock{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums}.live{color:#7df0aa;font-weight:800}
+.kpis{display:grid;grid-template-columns:repeat(8,minmax(110px,1fr));gap:10px;margin-bottom:12px}
+.kpi{padding:13px;min-height:124px}.kpi .label{font-size:12px;font-weight:800}.kpi .value{font-size:clamp(28px,2.4vw,44px);font-weight:900;margin-top:12px}.kpi .sub{font-size:11px;color:var(--muted);margin-top:7px}
+.kpi.green{background:linear-gradient(180deg,rgba(0,105,67,.72),rgba(7,53,43,.88))}.kpi.red{background:linear-gradient(180deg,rgba(133,13,39,.76),rgba(61,9,23,.9))}.kpi.yellow{background:linear-gradient(180deg,rgba(121,84,4,.75),rgba(54,39,6,.9))}.kpi.purple{background:linear-gradient(180deg,rgba(76,38,123,.76),rgba(42,24,70,.9))}.kpi.cyan{background:linear-gradient(180deg,rgba(5,93,118,.74),rgba(4,48,62,.9))}
+.secLabel{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:800;letter-spacing:.16em;color:var(--muted);margin:0 2px 8px;text-transform:uppercase}.secLabel i{font-style:normal;letter-spacing:.04em;font-weight:700;text-transform:none}
+.hcRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.kpi.hcCard{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 30px;min-height:132px;border-left:5px solid rgba(255,255,255,.55)}
+.kpi.hcCard .label{font-size:16px;letter-spacing:.06em;text-transform:uppercase}
+.kpi.hcCard .sub{font-size:13px;margin-top:8px}
+.kpi.hcCard .value{font-size:clamp(56px,6vw,96px);line-height:1;margin:0;letter-spacing:-.02em}
+.dashboardGrid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(330px,.95fr);gap:12px}
+.sectionTitle{font-weight:900;padding:13px 15px 10px}.tableWrap{overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;border-top:1px solid rgba(255,255,255,.07);text-align:center;font-size:13px}th{background:rgba(255,255,255,.03);color:#cfe1ed}td:first-child,th:first-child{text-align:left;padding-left:15px}
+.total{background:linear-gradient(90deg,rgba(227,24,55,.8),rgba(125,12,34,.7));font-weight:900}
+.pct{display:flex;align-items:center;gap:8px;min-width:145px}#deptTable{min-width:0}#deptTable th,#deptTable td{padding:10px 6px}#deptTable th:first-child,#deptTable td:first-child{padding-left:12px}#deptTable .pct{min-width:120px}.bar{height:12px;flex:1;border-radius:99px;background:#213b4c;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#31df7a,#54ed91)}.bar.warn i{background:linear-gradient(90deg,#ffc631,#ffe16d)}
+.side{display:grid;gap:12px}.panel{padding:13px 15px}.alert{color:var(--yellow);font-weight:900}.panel ul{margin:8px 0 0 18px;padding:0}.panel li{margin:6px 0}
+.footer{margin-top:12px;overflow:hidden;border-radius:14px;position:relative;background:linear-gradient(90deg,var(--red),#8d0d29 55%,#0a1d2d 100%);box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 12px 34px rgba(227,24,55,.35)}
+.footer::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 60% 140% at 50% 50%,rgba(255,255,255,.16),transparent 70%);pointer-events:none}
+.footerMsg{position:relative;padding:26px 24px;display:flex;align-items:center;justify-content:center;gap:22px;text-align:center}
+.footerMsg .fLine{flex:0 0 auto;width:clamp(30px,7vw,90px);height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.85));border-radius:2px}
+.footerMsg .fLine.right{background:linear-gradient(90deg,rgba(255,255,255,.85),transparent)}
+.footerMsg .msgText{font-size:clamp(22px,3vw,38px);font-weight:900;letter-spacing:.08em;white-space:nowrap;text-shadow:0 2px 18px rgba(0,0,0,.35);background:linear-gradient(100deg,#fff 0%,#fff 42%,#ffd7dd 50%,#fff 58%,#fff 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:footerShine 6s linear infinite}
+@keyframes footerShine{0%{background-position:220% 0}100%{background-position:-220% 0}}
+@media(max-width:700px){.footerMsg{gap:12px}.footerMsg .msgText{font-size:clamp(15px,4.4vw,22px);letter-spacing:.05em;white-space:normal}.footerMsg .fLine{display:none}}
+
+/* login */
+.authWrap{min-height:68vh;display:grid;place-items:center}.loginCard{width:min(460px,94vw);padding:24px}.loginCard h3{margin:0 0 5px;font-size:28px}.loginCard p{color:var(--muted);margin:0 0 18px}
+.field{margin-bottom:13px}.field label{display:block;font-size:12px;color:#cfe0ea;font-weight:800;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;background:#081d2b;border:1px solid #24465d;color:#fff;border-radius:11px;padding:12px 13px;outline:none}.field textarea{min-height:90px;resize:vertical}
+.formGrid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.formGrid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.notice{padding:11px 13px;border-radius:11px;background:rgba(50,197,231,.08);border:1px solid rgba(50,197,231,.22);color:#cdf7ff;font-size:12px;margin-bottom:13px}
+.badge{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(49,217,124,.12);color:#78f0a8;font-size:12px;font-weight:800}
+.lock{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(255,204,51,.12);color:#ffe173;font-size:12px;font-weight:800}
+.superGrid{display:grid;grid-template-columns:minmax(320px,.8fr) minmax(0,1.35fr);gap:14px}.formCard{padding:18px}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}
+.miniGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}.mini{padding:12px;background:#0b2233;border:1px solid rgba(255,255,255,.08);border-radius:13px}.mini span{font-size:11px;color:var(--muted)}.mini b{display:block;font-size:22px;margin-top:4px}
+.adminGrid{display:grid;grid-template-columns:minmax(300px,.7fr) minmax(0,1.5fr);gap:14px}.adminCard{padding:18px}
+.smallBtn{padding:6px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#153249;color:#fff;cursor:pointer}.smallBtn.warn{background:#5a4210}.smallBtn.danger{background:#6b1023}
+.statusOn{color:#6ef0a2}.statusOff{color:#ff858e}
+.reportFilters{display:grid;grid-template-columns:160px 200px 140px auto;gap:10px;align-items:end;margin-bottom:12px}
+.reportCards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.lightCard{background:#fff;color:var(--ink);border-radius:var(--radius);box-shadow:0 10px 30px rgba(19,35,58,.12);border:1px solid #dfe5ec}
+.lightCard .sectionTitle{color:var(--ink)}
+.lightCard table{min-width:820px}.lightCard th,.lightCard td{border-top:1px solid #edf1f5;color:var(--ink)}.lightCard th{background:#f7f9fb}
+.toast{position:fixed;right:20px;bottom:20px;background:#102b3f;border:1px solid rgba(255,255,255,.12);padding:12px 16px;border-radius:12px;opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none}.toast.show{opacity:1;transform:none}
+@media(max-width:1200px){.kpis{grid-template-columns:repeat(4,1fr)}.dashboardGrid,.superGrid,.adminGrid{grid-template-columns:1fr}}
+@media(max-width:700px){.hcRow{grid-template-columns:1fr}.topbar{align-items:flex-start}.brand small{display:none}.nav{width:100%;justify-content:flex-start}main{padding:12px}.kpis{grid-template-columns:repeat(2,1fr)}.headline{flex-direction:column;align-items:flex-start}.formGrid2,.formGrid3{grid-template-columns:1fr}.miniGrid,.reportCards{grid-template-columns:repeat(2,1fr)}.reportFilters{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brandMark"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwLjI4IDAuMjYgMjM5LjQ0IDMyLjQ3Ij48cGF0aCBkPSJNMjM3LjMyIDkuMDlhMS45MyAxLjkzIDAgMCAxLTEuOTMtMS45MmMwLTEuMDYuODctMS45MyAxLjkzLTEuOTNzMS45My44NyAxLjkzIDEuOTMtLjg3IDEuOTItMS45MyAxLjkybTAtNC4zMmMtMS4zMiAwLTIuNCAxLjA4LTIuNCAyLjRzMS4wOCAyLjQgMi40IDIuNCAyLjQtMS4wOCAyLjQtMi40LTEuMDgtMi40LTIuNC0yLjQiLz48cGF0aCBkPSJtMjM3LjQ4IDcuMDctLjUxLjAxLS4wMS0uNjJoLjUxYy4xOS0uMDEuMzQuMTEuMzQuMy4wMS4xOS0uMTQuMzEtLjMzLjMxbS44My0uMzJjLS4wMS0uNDItLjMtLjcyLS43Ny0uNzJsLTEuMDcuMDIuMDMgMi4yNmguNDlsLS4wMS0uODFoLjM1bC40Ni44LjU1LS4wMS0uNTItLjg2Yy4yNC0uMDYuNDktLjI4LjQ5LS42OE01MS44MzQgMjMuMThoLTUuOTk5VjkuMzQ3aDUuODM1YzEuNTc0IDAgMi41NTcgMS4wMTYgMi41NTcgMi4zOTNzLS45ODMgMi4zNi0yLjU1NyAyLjM2SDQ1djRoNi44MzRjMS44MzYgMCAyLjgyIDEuMTggMi44MiAyLjU1NSAwIDEuNTc0LTEuMDUgMi41MjUtMi44MiAyLjUyNW0zLjM3Ni03LjI0NWMyLjA2Ni0uNDI2IDMuNzcxLTIuMjYyIDMuNzcxLTUuMDE1IDAtMi45MTgtMi4xMy01LjU3My02LjI5NS01LjU3M0g0MS4xOHYyMS44NjVoMTEuODY3YzQuMTYzIDAgNi4zNi0yLjYyMyA2LjM2LTUuOSAwLTIuNzU1LTEuODY5LTUuMDE2LTQuMTk3LTUuMzc3bTE3LjgyMy0uNTlINjh2NC4wOThoMy41NThsNC4yOTQgNy43N2g1LjM0M2wtNC45MTctOC4zMjhjMi4zNi0uNTU3IDQuNzg2LTIuNjIyIDQuNzg2LTYuNDltMCAwYzAtNC4wNjUtMi43ODYtNy4wNDgtNy4zNDMtNy4wNDhINjMuNDkzdjIxLjg2NWg0LjY1NVY5LjQ0NWg0Ljg4NWMxLjg2OSAwIDMuMjc4IDEuMTE0IDMuMjc4IDIuOTVzLTEuNDEgMi45NS0zLjI3OCAyLjk1bTQzLjQyIDQuMDY1IDMuNDEtOS40MDcgMy40MSA5LjQwN3ptLjQ5Mi0xNC4wNjMtOC40NTggMjEuODY1aDUuMzFsMS4zNzctMy43MDRoOS4zNzZsMS4zNDQgMy43MDRoNS4zMTFMMTIyLjc4IDUuMzQ4em0yNi45MDUgMTcuNzY4aC0zLjk2OFY5LjQ0NWgzLjk2N2M0LjQ5MSAwIDYuODUxIDIuOTgzIDYuODUxIDYuODUyIDAgMy43MDQtMi41MjQgNi44MTgtNi44NSA2LjgxOG0wLTE3Ljc2N2gtOC42MjN2MjEuODY1aDguNjIyYzYuODUxIDAgMTEuNjA0LTQuMzI3IDExLjYwNC0xMC45MTZTMTUwLjcgNS4zNDcgMTQzLjg1IDUuMzQ3bTgyLjEyNi0uMDA0LTUuNzM0IDkuMjctNS43MzQtOS4yN2gtNS4xNDZ2MjEuODdoNC42NTZWMTIuOTE4bDUuMDEyIDcuNjIyYTEuNDUgMS40NSAwIDAgMCAyLjQyNCAwbDUuMDEzLTcuNjIydjE0LjI5M2g0LjY1NlY1LjM0M1oiLz48cGF0aCBkPSJNOTUuODI1IDIzLjM0NGE3LjAxIDcuMDEgMCAwIDEtNy4wMDgtNy4wMDggNy4wMDggNy4wMDggMCAxIDEgNy4wMDggNy4wMDhtMC0xOC41MzZjLTYuMzY3IDAtMTEuNTI4IDUuMTYxLTExLjUyOCAxMS41MjggMCA2LjM2NiA1LjE2MSAxMS41MjcgMTEuNTI4IDExLjUyNyA2LjM2NiAwIDExLjUyOC01LjE2IDExLjUyOC0xMS41MjdTMTAyLjE5MSA0LjgwOCA5NS44MjUgNC44MDgiIGlkPSJhIi8+PHBhdGggZD0iTTE3Ni40MDQgMTkuNzI3YTcuMDA5IDcuMDA5IDAgMSAxLTYuMTMyLTEwLjM5OSA3IDcgMCAwIDEgNi4xIDMuNTY1bDMuMjctMy4yN2ExMS41MSAxMS41MSAwIDAgMC05LjM3LTQuODE1Yy02LjM2NyAwLTExLjUyNyA1LjE2LTExLjUyNyAxMS41MjggMCA2LjM2NiA1LjE2IDExLjUyOCAxMS41MjcgMTEuNTI4IDMuODgzIDAgNy4zMTYtMS45MjIgOS40MDQtNC44NjV6Ii8+PHVzZSB4bGluazpocmVmPSIjYSIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTguNzE4KSIvPjxlbGxpcHNlIGN4PSIxNi41MiIgY3k9IjE2LjQ5NyIgcng9IjE2LjIzNiIgcnk9IjE2LjIzNSIgZmlsbD0iI2NjMDkyZiIvPjxwYXRoIGQ9Ik0zMC44MjUgMjAuODgzYy0xLjg1Ny0uNzQtMy41NTctLjQ5Mi01LjI2LjU0MSAwIDAtLjYyMi4zOC0uODA4LjQ5Ni0uNzk0LjQ5OC0xLjU0My45Ny0yLjI2My45Ny0uNjg3IDAtMS4zNjMtLjE4NC0xLjY0OS0xLjUxMy0uNDQ2LTIuMDczLTEuNTM0LTcuMTY3LTIuMDA5LTkuNjktLjI3OS0xLjQ4My0uNDMyLTIuMjgyLS41OS0yLjgyNS0uMjgtLjk1NC0uNzkzLTEuNDczLTEuNTItMS41NTYgMCAwLS4xMTQtLjAxNi0uMjA3LS4wMTZzLS4yMTguMDE4LS4yMTguMDE4Yy0uNzIuMDg2LTEuMjI5LjYwNS0xLjUwNyAxLjU1NC0uMTU5LjU0My0uMzEyIDEuMzQyLS41OSAyLjgyNS0uNDc2IDIuNTIzLTEuNTY0IDcuNjE3LTIuMDEgOS42OS0uMjg2IDEuMzMtLjk2MiAxLjUxMy0xLjY0OSAxLjUxMy0uNzIgMC0xLjQ2OS0uNDcyLTIuMjYzLS45N2wtLjgwOC0uNDk2Yy0xLjcwMy0xLjAzMy0zLjQwNC0xLjI4LTUuMjYtLjU0LS40LjE2LS43OTYuMzM4LTEuMTcyLjUyLjI1Ny44MDUuNTc3IDEuNTk5Ljk1IDIuMzQ0LjQxMS0uMjAyLjg0Mi0uNDAzIDEuMjgyLS41MzMuNjM0LS4xODcgMS4yODQtLjE5NyAxLjkxNC4wMTQuNjEyLjIwNSAxLjE1Ny41NjggMS43LjkxIDEuMDIzLjY0MiAyLjE4MiAxLjM3MSAzLjY1NyAxLjM3MSAyLjE4NiAwIDMuNzItMS4zMDUgNC4yMS0zLjU4LjM4LTEuNzY1IDEuMjIyLTUuNzAzIDEuNzYzLTguNDE5IDAgMCAxLjM4NiA2LjY1NCAxLjc2NSA4LjQxOC40OSAyLjI3NiAyLjAyNSAzLjU4MSA0LjIxMSAzLjU4MSAxLjQ3NSAwIDIuNjM0LS43MjkgMy42NTctMS4zNzIuNTQzLS4zNCAxLjA4OC0uNzA0IDEuNy0uOTA5LjYzLS4yMSAxLjI4LS4yIDEuOTE0LS4wMTQuNDQuMTMuODcuMzMgMS4yODIuNTMzYTE2IDE2IDAgMCAwIC45NS0yLjM0NSAxOSAxOSAwIDAgMC0xLjE3Mi0uNTIiIGZpbGw9IiNmZmYiLz48L3N2Zz4=" alt="Broadcom"></div>
+    <div><h1>BROADCOM</h1><small>Penang Global Distribution Hub • D08 Warehouse</small></div>
+  </div>
+  <div class="nav">
+    <button class="btn primary active" id="tvBtn" onclick="switchView('tv')">TV Dashboard</button>
+    <button class="btn" id="loginBtn" onclick="switchView('login')">Supervisor Login</button>
+    <button class="btn hidden" id="updateBtn" onclick="switchView('supervisor')">My Team Update</button>
+    <button class="btn hidden" id="adminBtn" onclick="switchView('admin')">Dept Management</button>
+    <button class="btn hidden" id="historyBtn" onclick="switchView('history')">History / Reports</button>
+    <button class="btn ghost hidden" id="logoutBtn" onclick="logout()">Logout</button>
+    <button class="btn ghost" onclick="manualRefresh()">Refresh</button>
+    <button class="btn ghost" onclick="toggleFullscreen()">Full Screen</button>
+  </div>
+</header>
+
+<main>
+<!-- TV -->
+<section id="tvView" class="view active">
+  <div class="headline">
+    <div><h2>Daily Attendance & Manpower Overview</h2><p>People • Safety • Productivity • A stronger tomorrow</p></div>
+    <div><div class="live">● LIVE</div><div id="tvDate" style="margin-top:2px;font-size:13px;color:var(--muted);font-weight:700"></div><div id="tvShiftBadge" style="margin-top:4px;font-weight:800;color:#ffe173"></div></div>
+  </div>
+  <div class="secLabel"><span>Total Headcount</span><i id="hcStamp"></i></div>
+  <div class="hcRow" id="hcGrid"></div>
+  <div class="secLabel"><span>Today's Attendance</span></div>
+  <div class="kpis" id="kpiGrid"></div>
+  <div class="dashboardGrid">
+    <div class="card">
+      <div class="sectionTitle">BY DEPARTMENT</div>
+      <div class="tableWrap"><table id="deptTable"></table></div>
+    </div>
+    <div class="side">
+      <div class="card panel"><div class="sectionTitle" style="padding:0 0 6px">TODAY'S FOCUS</div><div class="alert" id="focusHeadline"></div><ul id="focusList"></ul></div>
+      <div class="card panel"><div class="sectionTitle" style="padding:0 0 6px">QUICK INSIGHTS</div><div id="insightList"></div></div>
+      <div class="card panel"><div class="sectionTitle" style="padding:0 0 6px">SYSTEM STATUS</div><div style="font-size:13px;color:#cddbe5;line-height:1.6">Supervisor access is department-restricted. TV view is read-only and shows all departments for the current shift only.</div></div>
+    </div>
+  </div>
+  <div class="footer"><div class="footerMsg"><span class="fLine"></span><span class="msgText">WE DELIVER BROADCOM TO THE WORLD</span><span class="fLine right"></span></div></div>
+</section>
+
+<!-- LOGIN -->
+<section id="loginView" class="view">
+  <div class="authWrap">
+    <div class="card loginCard">
+      <h3>Supervisor Login</h3><p>Use your assigned Login ID and PIN.</p>
+      <div class="field"><label>Login ID</label><input id="loginId" placeholder="e.g. RCV-SUP01"></div>
+      <div class="field"><label>PIN</label><input id="loginPin" type="password" inputmode="numeric" placeholder="4–8 digit PIN"></div>
+      <button class="btn primary" style="width:100%" onclick="login()">Login</button>
+      <div id="loginError" style="color:#ff7b84;font-size:12px;margin-top:8px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- SUPERVISOR -->
+<section id="superView" class="view">
+  <div class="headline">
+    <div><h2>My Team Attendance Update</h2><p id="superSubtitle"></p></div>
+    <div><span class="badge" id="userBadge"></span> <span class="lock">🔒 Department locked</span></div>
+  </div>
+  <div class="card panel" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div><b>Warehouse Current Shift:</b> <span id="curShiftLabel" style="font-weight:900"></span><div style="font-size:11px;color:var(--muted);margin-top:2px">Shown live on the TV Dashboard for everyone.</div></div>
+    <div class="actions" style="margin-top:0">
+      <button class="btn" id="setShiftABtn" onclick="setCurrentShift('A')">Set Shift A</button>
+      <button class="btn" id="setShiftBBtn" onclick="setCurrentShift('B')">Set Shift B</button>
+    </div>
+  </div>
+  <div class="card formCard" style="margin-bottom:14px">
+    <div class="sectionTitle" style="padding:0 0 10px">TOTAL HEADCOUNT (OFF + WORKING) — ALL TEAMS CAN UPDATE</div>
+    <div class="formGrid2">
+      <div class="field"><label>Current RP HC</label><input id="hcRp" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field"><label>Current BRCM HC</label><input id="hcBrcm" type="number" min="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="actions"><button class="btn primary" onclick="saveHeadcount()">Save Headcount</button></div>
+    <div class="notice" style="margin-top:12px" id="hcMeta">Shown on the TV dashboard KPI row. Update whenever the total headcount changes.</div>
+  </div>
+  <div class="superGrid">
+    <div class="card formCard">
+      <div class="notice">You can update only the department assigned to your login ID.</div>
+      <div class="formGrid2">
+        <div class="field"><label>Date</label><input id="entryDate" type="date"></div>
+        <div class="field"><label>Department</label><input id="lockedDept" disabled></div>
+      </div>
+      <div class="formGrid2">
+        <div class="field"><label>Total HC</label><input id="planned" type="number" min="0"></div>
+        <div class="field"><label>Present</label><input id="present" type="number" min="0"></div>
+      </div>
+      <div class="formGrid3">
+        <div class="field"><label>MC</label><input id="mc" type="number" min="0"></div>
+        <div class="field"><label>Annual Leave / Other Leave</label><input id="annualLeave" type="number" min="0"></div>
+        <div class="field"><label>OT Headcount</label><input id="otHours" type="number" min="0" step="1"></div>
+      </div>
+      <div class="field"><label>Remarks</label><textarea id="remarks" maxlength="200" placeholder="Optional remarks"></textarea></div>
+      <div class="actions"><button class="btn primary" onclick="saveEntry()">Save Update</button><button class="btn" onclick="loadMyEntry()">Reload Existing</button></div>
+    </div>
+    <div>
+      <div class="miniGrid" id="miniGrid"></div>
+      <div class="card"><div class="sectionTitle">MY DEPARTMENT STATUS</div><div class="tableWrap"><table id="myTable"></table></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ADMIN -->
+<section id="adminView" class="view">
+  <div class="headline"><div><h2>Department Management</h2><p>Create supervisor IDs and assign department access.</p></div><div><span class="badge">ADMIN ACCESS</span></div></div>
+  <div class="adminGrid">
+    <div class="card adminCard">
+      <div class="field"><label>Supervisor Name</label><input id="mgrName" placeholder="e.g. Ahmad"></div>
+      <div class="field"><label>Login ID</label><input id="mgrId" placeholder="e.g. RCV-SUP02"></div>
+      <div class="field"><label>PIN</label><input id="mgrPin" inputmode="numeric" placeholder="4–8 digits"></div>
+      <div class="field"><label>Assigned Department</label><select id="mgrDept"></select></div>
+      <div class="field"><label>Role</label><select id="mgrRole"><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select></div>
+      <div class="actions"><button class="btn primary" onclick="saveManager()">Save Login</button><button class="btn ghost" onclick="clearManagerForm()">Clear</button></div>
+      <div class="notice" style="margin-top:12px">For production, move login security to Supabase Auth + Row Level Security.</div>
+    </div>
+    <div class="card">
+      <div class="sectionTitle">SUPERVISOR / DEPARTMENT ACCESS</div>
+      <div class="tableWrap"><table id="managerTable"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- HISTORY -->
+<section id="historyView" class="view">
+  <div class="headline"><div><h2>History & Management Reports</h2><p>Review manpower, attendance, leave and OT history.</p></div></div>
+  <div class="reportFilters">
+    <div class="field"><label>Date</label><input id="reportDate" type="date"></div>
+    <div class="field"><label>Department</label><select id="reportDept"></select></div>
+    <div class="field"><label>Shift</label><select id="reportShift"><option value="All">All Shifts</option><option value="A">Shift A</option><option value="B">Shift B</option></select></div>
+    <button class="btn primary" onclick="renderHistory()">Apply Filter</button>
+  </div>
+  <div class="reportCards" id="reportCards"></div>
+  <div class="lightCard">
+    <div class="sectionTitle">ATTENDANCE HISTORY</div>
+    <div class="tableWrap"><table id="historyTable"></table></div>
+  </div>
+  <div class="actions" style="margin-top:12px"><button class="btn" onclick="exportCSV()">Export CSV</button></div>
+</section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ---- Supabase ---- */
+const SUPABASE_URL = "https://gbgxejgscquaovrxelfr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3hlamdzY3F1YW92cnhlbGZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NDY4NzEsImV4cCI6MjEwMjIyMjg3MX0.nngpDcJDtPbC1K0HWBmH-BfHY8iqRcHXrxKMtY_nCBQ";
+const SB_AUTH={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}; // anon-only app: no auth storage/locks, so requests cannot hang waiting on a browser lock
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_rRFZ2LTo-pLYlagzygkTXQ_9U6y-d4f"; // second public key for the same project; only used if a network filter blocks the first one
+let sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, SB_AUTH);
+
+const MERGED_DEPT="Receiving & Cycle Count";
+const LEGACY_DEPTS=["Receiving","Cycle Count"]; // old names, folded into MERGED_DEPT
+const normDept=d=>LEGACY_DEPTS.includes(d)?MERGED_DEPT:d;
+const DEPTS=[MERGED_DEPT,"Training","P&P","Escalation","Technician","Shipping","Office / Mgmt"];
+const MGR_DEPTS=DEPTS.slice(); // every tracked department, including Office / Mgmt, can have a supervisor login
+const SHIFTS=["A","B"];
+let session=null;
+let ENTRIES={};   // {date:{dept:{shift:{planned,present,mc,annualLeave,otHours,remarks,updatedBy,updatedAt}}}}
+let MANAGERS=[];  // [{login_id,name,pin_hash,dept,role,active}]
+let CURRENT_SHIFT="A";
+let HC={rp:0,brcm:0,updatedBy:"",updatedAt:null}; // manually entered total headcount (off + working)
+
+function iso(d=new Date()){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
+function fmtDate(s){return new Date(s+"T12:00:00").toLocaleDateString("en-MY",{day:"2-digit",month:"short",year:"numeric"})}
+function n(v){return Number(v||0)} function pct(v){return (Math.round(v*10)/10).toFixed(1)+"%"}
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1500)}
+async function sha256Hex(str){const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("")}
+
+/* ---- Data access (Supabase-backed; shared across every device) ---- */
+function db(){return ENTRIES}
+function managers(){return MANAGERS}
+
+async function fetchManagers(key){
+ const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),10000);
+ try{const headers={apikey:key};if(key.startsWith("eyJ"))headers.Authorization="Bearer "+key;
+  const r=await fetch(SUPABASE_URL+"/rest/v1/attendance_managers?select=*&order=login_id",{headers,signal:ctl.signal});
+  const txt=await r.text();
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  let j;try{j=JSON.parse(txt)}catch(e){throw new Error("the network returned a web page instead of data - firewall/proxy")}
+  return j||[]}
+ finally{clearTimeout(t)}
+}
+async function loadManagersDirect(){ // plain fetch with timeout + second key as fallback, so a blocked/stuck connection shows a clear error
+ let firstErr;
+ for(const key of [SUPABASE_ANON_KEY,SUPABASE_PUBLISHABLE_KEY]){
+  try{const rows=await fetchManagers(key);MANAGERS=rows.map(m=>({...m,dept:normDept(m.dept)}));
+   if(key!==SUPABASE_ANON_KEY){sb=supabase.createClient(SUPABASE_URL,key,SB_AUTH);try{refreshAll()}catch(e){}}
+   return}
+  catch(e){if(!firstErr)firstErr=e}
+ }
+ throw firstErr
+}
+async function loadManagers(){
+ const {data,error}=await sb.from("attendance_managers").select("*").order("login_id");
+ if(error){toast("Could not load logins");console.error(error);return}
+ MANAGERS=(data||[]).map(m=>({...m,dept:normDept(m.dept)}))
+}
+async function loadEntries(){
+ const {data,error}=await sb.from("attendance_entries").select("*");
+ if(error){toast("Could not load attendance data");console.error(error);return}
+ const E={};
+ (data||[]).forEach(r=>{
+  if(!E[r.entry_date])E[r.entry_date]={};
+  const dp=normDept(r.dept);
+  if(!E[r.entry_date][dp])E[r.entry_date][dp]={};
+  const cur=E[r.entry_date][dp][r.shift],rec={planned:n(r.planned),present:n(r.present),mc:n(r.mc),annualLeave:n(r.annual_leave),otHours:n(r.ot_headcount),remarks:r.remarks,updatedBy:r.updated_by,updatedAt:r.updated_at};
+  if(cur){ // old Receiving + Cycle Count rows for the same date/shift -> add together
+   ["planned","present","mc","annualLeave","otHours"].forEach(k=>cur[k]=n(cur[k])+rec[k]);
+   cur.remarks=[cur.remarks,rec.remarks].filter(Boolean).join(" | ");
+   if((rec.updatedAt||"")>(cur.updatedAt||"")){cur.updatedBy=rec.updatedBy;cur.updatedAt=rec.updatedAt}
+  }else E[r.entry_date][dp][r.shift]=rec
+ });
+ ENTRIES=E
+}
+async function loadHeadcount(){
+ const {data,error}=await sb.from("attendance_headcount").select("*").eq("id","current").maybeSingle();
+ if(error){console.error(error);return}
+ if(data)HC={rp:n(data.rp_hc),brcm:n(data.brcm_hc),updatedBy:data.updated_by||"",updatedAt:data.updated_at}
+}
+async function saveHeadcount(){
+ if(!session){toast("Please log in first");return}
+ const rp=Math.floor(Number(hcRp.value)),br=Math.floor(Number(hcBrcm.value));
+ if(!Number.isFinite(rp)||!Number.isFinite(br)||rp<0||br<0||hcRp.value===""||hcBrcm.value===""){toast("Enter whole numbers (0 or more)");return}
+ const row={id:"current",rp_hc:rp,brcm_hc:br,updated_by:session.login_id,updated_at:new Date().toISOString()};
+ const {error}=await sb.from("attendance_headcount").upsert(row,{onConflict:"id"});
+ if(error){toast("Save failed - check connection");console.error(error);return}
+ HC={rp,brcm:br,updatedBy:row.updated_by,updatedAt:row.updated_at};
+ logAudit("update_headcount","current",{rp_hc:rp,brcm_hc:br});toast("Total headcount updated");renderAll()
+}
+async function logAudit(action,recordId,details){
+ try{await sb.from("attendance_audit_log").insert({table_name:"attendance",record_id:String(recordId),action,employee_id:session?.login_id||null,employee_name:session?.name||null,details:details||null})}
+ catch(e){console.error(e)}
+}
+async function refreshAll(){await Promise.all([loadManagers(),loadEntries(),loadShiftStatus(),loadHeadcount()]);renderAll()}
+async function loadShiftStatus(){
+ const {data,error}=await sb.from("attendance_shift_status").select("*").eq("id","current").maybeSingle();
+ if(error){console.error(error);return}
+ if(data)CURRENT_SHIFT=data.shift
+}
+async function setCurrentShift(sh){
+ if(!session)return;
+ const {error}=await sb.from("attendance_shift_status").update({shift:sh,updated_by:session.login_id,updated_at:new Date().toISOString()}).eq("id","current");
+ if(error){toast("Could not update shift");console.error(error);return}
+ CURRENT_SHIFT=sh;logAudit("set_current_shift","current",{shift:sh});toast("Warehouse shift set to "+sh);renderAll();if(session)loadMyEntry()
+}
+
+function totals(day,shift){const t={planned:0,present:0,mc:0,annualLeave:0,otHours:0};const shiftsToSum=shift?[shift]:SHIFTS;DEPTS.forEach(dep=>shiftsToSum.forEach(sh=>{const r=(day[dep]||{})[sh]||{};Object.keys(t).forEach(k=>t[k]+=n(r[k]))}));t.leave=t.mc+t.annualLeave;t.hcToday=t.present+t.otHours;t.att=t.planned?100*t.present/t.planned:0;return t}
+
+function switchView(v){
+ const map={tv:"tvView",login:"loginView",supervisor:"superView",admin:"adminView",history:"historyView"};
+ if(v==="supervisor"&&!session)return switchView("login");
+ if((v==="admin"||v==="history")&&(!session||session.role!=="admin"))return switchView("login");
+ Object.values(map).forEach(id=>document.getElementById(id).classList.remove("active"));
+ document.getElementById(map[v]).classList.add("active");
+ ["tvBtn","loginBtn","updateBtn","adminBtn","historyBtn"].forEach(id=>document.getElementById(id)?.classList.remove("active"));
+ const b={tv:"tvBtn",login:"loginBtn",supervisor:"updateBtn",admin:"adminBtn",history:"historyBtn"}[v];document.getElementById(b)?.classList.add("active");
+ if(v==="supervisor"){renderSupervisor();loadMyEntry()}
+ if(v==="admin")renderAdmin();
+ if(v==="history")renderHistory()
+}
+function applySession(){
+ const logged=!!session;loginBtn.classList.toggle("hidden",logged);logoutBtn.classList.toggle("hidden",!logged);
+ updateBtn.classList.toggle("hidden",!logged);adminBtn.classList.toggle("hidden",!(logged&&session.role==="admin"));historyBtn.classList.toggle("hidden",!(logged&&session.role==="admin"))
+}
+async function login(){try{await loginCore()}catch(e){console.error(e);loginError.textContent=(typeof supabase==="undefined")?"Cannot load the Supabase library (cdn.jsdelivr.net is blocked on this network/browser). Try another network or browser.":"Login error: "+e.message}}
+async function loginCore(){
+ const id=loginId.value.trim().toUpperCase(),pin=loginPin.value.trim();
+ if(!id||!pin){loginError.textContent="Enter your Login ID and PIN.";return}
+ if(!MANAGERS.length){loginError.textContent="Loading logins...";let why="";try{await loadManagersDirect()}catch(e){console.error(e);why=e.name==="AbortError"?"no reply within 10 seconds":(e.message||String(e))}
+  if(!MANAGERS.length&&!why)why="no logins returned";
+  if(!MANAGERS.length){loginError.textContent="Cannot load logins from the server ("+why+"). Check internet/firewall access to supabase.co, then press Refresh and try again.";return}}
+ const hash=await sha256Hex(pin);
+ const m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.pin_hash===hash&&x.active);
+ if(!m){loginError.textContent="Invalid or inactive Login ID / PIN.";return}
+ session={login_id:m.login_id,name:m.name,dept:normDept(m.dept),role:m.role};sessionStorage.setItem("bc_final_session",JSON.stringify(session));loginError.textContent="";applySession();toast("Welcome "+m.name);switchView(m.role==="admin"?"admin":"supervisor")
+}
+function logout(){session=null;sessionStorage.removeItem("bc_final_session");applySession();toast("Logged out");switchView("tv")}
+function loadSession(){try{session=JSON.parse(sessionStorage.getItem("bc_final_session")||"null");if(session)session.dept=normDept(session.dept)}catch{session=null};applySession()}
+
+function renderTV(){
+ const D=db(),day=D[iso()]||{},t=totals(day,CURRENT_SHIFT);const y=new Date();y.setDate(y.getDate()-1);const prev=totals(D[iso(y)]||{},CURRENT_SHIFT);
+ const dp=t.present-prev.present,dh=t.hcToday-prev.hcToday,dot=t.otHours-prev.otHours;
+ const ks=[
+  ["Planned Headcount",t.planned,"",""],["Present",t.present,"green",(dp>=0?"+":"")+dp+" vs yesterday"],["Attendance Rate",pct(t.att),"green","Target ≥ 90%"],
+  ["Coverage %",t.planned?pct(100*(t.present+t.otHours)/t.planned):"0.0%","cyan","Present + OT vs Planned"],
+  ["MC",t.mc,"red",t.planned?pct(100*t.mc/t.planned):"0.0%"],["Annual Leave",t.annualLeave,"yellow",t.planned?pct(100*t.annualLeave/t.planned):"0.0%"],
+  ["OT Headcount",t.otHours,"cyan",(dot>=0?"+":"")+dot+" vs yesterday"],["Total Headcount Today",t.hcToday,"green",(dh>=0?"+":"")+dh+" vs yesterday"]
+ ];
+ hcGrid.innerHTML=[["Current RP HC",HC.rp,"purple"],["Current BRCM HC",HC.brcm,"cyan"]].map(k=>`<div class="card kpi hcCard ${k[2]}"><div><div class="label">${k[0]}</div><div class="sub">Total headcount • off + working</div></div><div class="value">${k[1]}</div></div>`).join("");
+ hcStamp.textContent=HC.updatedAt?"Updated "+fmtDate(iso(new Date(HC.updatedAt)))+(HC.updatedBy?" • "+HC.updatedBy:""):"Not set yet";
+ kpiGrid.innerHTML=ks.map(k=>`<div class="card kpi ${k[2]}"><div class="label">${k[0]}</div><div class="value">${k[1]}</div><div class="sub">${k[3]}</div></div>`).join("");
+ tvShiftBadge.textContent="CURRENT SHIFT: "+CURRENT_SHIFT;
+ const activeDepts=DEPTS.filter(dep=>(day[dep]||{})[CURRENT_SHIFT]);
+ deptTable.innerHTML=`<thead><tr><th>Department</th><th>Planned Headcount</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT (HC)</th><th>Total Headcount Today</th><th>Attendance %</th></tr></thead><tbody>${activeDepts.length?activeDepts.map(dep=>{const r=(day[dep]||{})[CURRENT_SHIFT]||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=pr+n(r.otHours);return `<tr><td><b>${dep}</b></td><td>${pl}</td><td>${pr}</td><td style="color:#ff727c">${n(r.mc)}</td><td style="color:#ffd75d">${n(r.annualLeave)}</td><td style="color:#65dff8">${n(r.otHours)}</td><td style="color:#54ed91"><b>${g}</b></td><td><div class="pct"><div class="bar ${a<90?"warn":""}"><i style="width:${Math.min(a,100)}%"></i></div><b>${pct(a)}</b></div></td></tr>`}).join(""):`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:22px">No updates submitted yet for Shift ${CURRENT_SHIFT} today.</td></tr>`}${activeDepts.length?`<tr class="total"><td>TOTAL</td><td>${t.planned}</td><td>${t.present}</td><td>${t.mc}</td><td>${t.annualLeave}</td><td>${t.otHours}</td><td>${t.hcToday}</td><td>${pct(t.att)}</td></tr>`:""}</tbody>`;
+ const under=DEPTS.map(dep=>{const r=(day[dep]||{})[CURRENT_SHIFT]||{},a=n(r.planned)?100*n(r.present)/n(r.planned):0;return[dep,a]}).filter(x=>x[1]&&x[1]<90).sort((a,b)=>a[1]-b[1]);
+ focusHeadline.textContent=under.length?`${under.length} department${under.length>1?"s":""} below 90% attendance`:"All active departments are at or above 90%";
+ focusList.innerHTML=(under.length?under:[["No critical attendance gap",100]]).map(x=>`<li>${x[0]}${x[1]!==100?` (${pct(x[1])})`:""}</li>`).join("");
+ insightList.innerHTML=[
+  [`${dp>=0?"+":""}${dp} vs yesterday`,"Present headcount"],
+  [`${dh>=0?"+":""}${dh} vs yesterday`,"Total headcount today"],
+  [`${dot>=0?"+":""}${dot} vs yesterday`,"OT headcount"]
+ ].map(x=>`<div style="padding:8px 0;border-top:1px solid rgba(255,255,255,.06)"><b>${x[0]}</b><div style="font-size:11px;color:var(--muted)">${x[1]}</div></div>`).join("")
+}
+
+function loadMyEntry(){
+ if(!session)return;const date=entryDate.value||iso(),sh=CURRENT_SHIFT,r=(((db()[date]||{})[session.dept]||{})[sh])||{};
+ lockedDept.value=session.dept;planned.value=r.planned??0;present.value=r.present??0;mc.value=r.mc??0;annualLeave.value=r.annualLeave??0;otHours.value=r.otHours??0;remarks.value=r.remarks??"";renderSupervisor()
+}
+async function saveEntry(){
+ if(!session)return;const date=entryDate.value||iso(),sh=CURRENT_SHIFT;
+ const row={entry_date:date,dept:session.dept,shift:sh,planned:n(planned.value),present:n(present.value),mc:n(mc.value),annual_leave:n(annualLeave.value),ot_headcount:n(otHours.value),remarks:remarks.value.trim(),updated_by:session.login_id,updated_at:new Date().toISOString()};
+ if(row.present>row.planned&&row.planned>0&&!confirm("Present is higher than planned. Save anyway?"))return;
+ const {error}=await sb.from("attendance_entries").upsert(row,{onConflict:"entry_date,dept,shift"});
+ if(error){toast("Save failed - check connection");console.error(error);return}
+ if(session.dept===MERGED_DEPT){try{await sb.from("attendance_entries").delete().eq("entry_date",date).eq("shift",sh).in("dept",LEGACY_DEPTS)}catch(e){console.error(e)}} // saved total replaces old separate rows
+ if(!ENTRIES[date])ENTRIES[date]={};
+ if(!ENTRIES[date][session.dept])ENTRIES[date][session.dept]={};
+ ENTRIES[date][session.dept][sh]={planned:row.planned,present:row.present,mc:row.mc,annualLeave:row.annual_leave,otHours:row.ot_headcount,remarks:row.remarks,updatedBy:row.updated_by,updatedAt:row.updated_at};
+ logAudit("update_entry",date+"/"+session.dept+"/"+sh,row);
+ toast(session.dept+" (Shift "+sh+") updated");renderAll();loadMyEntry()
+}
+function renderSupervisor(){
+ if(!session)return;
+ if(document.activeElement!==hcRp)hcRp.value=HC.rp;if(document.activeElement!==hcBrcm)hcBrcm.value=HC.brcm;
+ hcMeta.textContent=HC.updatedAt?"Last updated "+new Date(HC.updatedAt).toLocaleString("en-MY")+(HC.updatedBy?" by "+HC.updatedBy:"")+". Shown on the TV dashboard KPI row.":"Shown on the TV dashboard KPI row. Update whenever the total headcount changes.";superSubtitle.textContent="Assigned department: "+session.dept;userBadge.textContent=session.name+" • "+session.login_id;lockedDept.value=session.dept;
+ curShiftLabel.textContent="Shift "+CURRENT_SHIFT;setShiftABtn.classList.toggle("primary",CURRENT_SHIFT==="A");setShiftBBtn.classList.toggle("primary",CURRENT_SHIFT==="B");
+ const date=entryDate.value||iso(),sh=CURRENT_SHIFT,r=(((db()[date]||{})[session.dept]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0,g=pr+n(r.otHours);
+ miniGrid.innerHTML=[["Total HC",pl],["Present",pr],["Attendance",pct(a)],["Total Headcount Today",g]].map(x=>`<div class="mini"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
+ myTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT (HC)</th><th>Attendance</th><th>Total Headcount Today</th></tr></thead><tbody><tr><td><b>${session.dept}</b></td><td>Shift ${sh}</td><td>${pl}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${g}</td></tr></tbody>`
+}
+
+function renderAdmin(){
+ managerTable.innerHTML=`<thead><tr><th>Name</th><th>Login ID</th><th>Department</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${managers().map((m,i)=>`<tr><td><b>${m.name}</b></td><td>${m.login_id}</td><td>${m.dept}</td><td>${m.role}</td><td class="${m.active?"statusOn":"statusOff"}">${m.active?"Active":"Inactive"}</td><td><button class="smallBtn" onclick="editManager(${i})">Edit</button> <button class="smallBtn warn" onclick="toggleManager(${i})">${m.active?"Disable":"Enable"}</button>${m.login_id!=="ADMIN"?` <button class="smallBtn danger" onclick="deleteManager(${i})">Delete</button>`:""}</td></tr>`).join("")}</tbody>`
+}
+function clearManagerForm(){mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="4–8 digits";mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
+function editManager(i){const m=managers()[i];mgrName.value=m.name;mgrId.value=m.login_id;mgrId.readOnly=false;mgrPin.value="";mgrPin.placeholder="Leave blank to keep current PIN";mgrDept.value=m.dept;mgrRole.value=m.role;mgrId.dataset.edit=String(i)}
+async function saveManager(){
+ const name=mgrName.value.trim(),id=mgrId.value.trim().toUpperCase(),pin=mgrPin.value.trim(),dept=mgrDept.value,role=mgrRole.value;
+ if(!name||!id)return alert("Please complete name and Login ID.");
+ const edit=mgrId.dataset.edit;
+ if(!edit){
+  if(!pin)return alert("PIN is required for a new login.");
+  if(!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
+  if(managers().some(x=>x.login_id===id))return alert("Login ID already exists.");
+  const pin_hash=await sha256Hex(pin);
+  const {error}=await sb.from("attendance_managers").insert({login_id:id,name,pin_hash,dept,role,active:true});
+  if(error){toast("Save failed");console.error(error);return}
+  logAudit("create_manager",id,{name,dept,role})
+ }else{
+  const idx=Number(edit),existing=managers()[idx];
+  if(pin&&!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
+  if(id!==existing.login_id&&managers().some(x=>x.login_id===id&&x.login_id!==existing.login_id))return alert("Login ID already exists.");
+  const update={login_id:id,name,dept,role};if(pin)update.pin_hash=await sha256Hex(pin);
+  const {error}=await sb.from("attendance_managers").update(update).eq("login_id",existing.login_id);
+  if(error){toast("Save failed");console.error(error);return}
+  if(id!==existing.login_id&&session?.login_id===existing.login_id){session.login_id=id;sessionStorage.setItem("bc_final_session",JSON.stringify(session))}
+  logAudit("update_manager",existing.login_id,update)
+ }
+ await loadManagers();clearManagerForm();renderAdmin();toast("Login saved")
+}
+async function toggleManager(i){
+ const m=managers()[i];if(m.login_id==="ADMIN"&&m.active)return alert("ADMIN cannot be disabled.");
+ const {error}=await sb.from("attendance_managers").update({active:!m.active}).eq("login_id",m.login_id);
+ if(error){toast("Update failed");return}
+ logAudit("toggle_manager",m.login_id,{active:!m.active});await loadManagers();renderAdmin()
+}
+async function deleteManager(i){
+ const m=managers()[i];if(!confirm("Delete "+m.name+"?"))return;
+ const {error}=await sb.from("attendance_managers").delete().eq("login_id",m.login_id);
+ if(error){toast("Delete failed - it may have logged entries tied to it");console.error(error);return}
+ logAudit("delete_manager",m.login_id,{});await loadManagers();renderAdmin()
+}
+
+function renderHistory(){
+ const D=db(),date=reportDate.value||iso(),dep=reportDept.value,shFilter=reportShift.value||"All",day=D[date]||{};
+ const shiftsToShow=shFilter==="All"?SHIFTS:[shFilter];
+ const depsToShow=dep==="All Departments"?DEPTS:[dep];
+ let rows=[];
+ depsToShow.forEach(d=>shiftsToShow.forEach(s=>rows.push([d,s,(day[d]||{})[s]||{}])));
+ const t=rows.reduce((acc,[,,r])=>{acc.planned+=n(r.planned);acc.present+=n(r.present);acc.mc+=n(r.mc);acc.leave+=n(r.annualLeave);acc.ot+=n(r.otHours);return acc},{planned:0,present:0,mc:0,leave:0,ot:0});
+ const att=t.planned?100*t.present/t.planned:0;
+ reportCards.innerHTML=[["Total HC",t.planned],["Present",t.present],["Attendance",pct(att)],["OT Headcount",t.ot]].map(x=>`<div class="lightCard" style="padding:14px"><div style="font-size:11px;color:#6f7f93">${x[0]}</div><div style="font-size:26px;font-weight:900;margin-top:5px">${x[1]}</div></div>`).join("");
+ historyTable.innerHTML=`<thead><tr><th>Department</th><th>Shift</th><th>Total HC</th><th>Present</th><th>MC</th><th>Annual Leave</th><th>OT (HC)</th><th>Attendance %</th><th>Updated By</th><th>Remarks</th></tr></thead><tbody>${rows.map(([d,s,r])=>{const p0=n(r.planned),pr=n(r.present),a=p0?100*pr/p0:0;return `<tr><td><b>${d}</b></td><td>Shift ${s}</td><td>${p0}</td><td>${pr}</td><td>${n(r.mc)}</td><td>${n(r.annualLeave)}</td><td>${n(r.otHours)}</td><td>${pct(a)}</td><td>${r.updatedBy||"-"}</td><td>${r.remarks||""}</td></tr>`}).join("")}</tbody>`
+}
+function exportCSV(){
+ const D=db(),rows=[["Date","Department","Shift","Total HC","Present","MC","Annual Leave","OT Headcount","Attendance %","Updated By","Remarks"]];
+ Object.keys(D).sort().forEach(date=>DEPTS.forEach(dep=>SHIFTS.forEach(sh=>{const r=((D[date][dep]||{})[sh])||{},pl=n(r.planned),pr=n(r.present),a=pl?100*pr/pl:0;rows.push([date,dep,sh,pl,pr,n(r.mc),n(r.annualLeave),n(r.otHours),a.toFixed(1),r.updatedBy||"",r.remarks||""])})));
+ const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="broadcom_attendance_history.csv";a.click();URL.revokeObjectURL(url)
+}
+async function toggleFullscreen(){if(!document.fullscreenElement)await document.documentElement.requestFullscreen().catch(()=>{});else await document.exitFullscreen().catch(()=>{})}
+async function manualRefresh(){await refreshAll();toast("Refreshed")}
+function renderAll(){renderTV();if(session)renderSupervisor();if(session?.role==="admin"){renderAdmin();renderHistory()}}
+async function init(){
+ entryDate.value=iso();reportDate.value=iso();
+ mgrDept.innerHTML=MGR_DEPTS.map(d=>`<option>${d}</option>`).join("");reportDept.innerHTML=`<option>All Departments</option>`+DEPTS.map(d=>`<option>${d}</option>`).join("");
+ entryDate.addEventListener("change",loadMyEntry);let lastTick=Date.now(),bootAt=Date.now();const safeReload=()=>{fetch(location.href,{method:"HEAD",cache:"no-store"}).then(()=>location.reload()).catch(()=>{})};const onTick=()=>{const now=Date.now(),gap=now-lastTick;lastTick=now;if(!session&&(gap>60000||now-bootAt>1800000)){bootAt=now;safeReload()}};setInterval(onTick,1000);try{const w=new Worker(URL.createObjectURL(new Blob(["setInterval(()=>postMessage(1),1000)"],{type:"text/javascript"})));w.onmessage=onTick}catch(e){}document.addEventListener("visibilitychange",onTick);window.addEventListener("focus",onTick);window.addEventListener("pageshow",onTick);
+function renderTvDate(){tvDate.textContent=new Date().toLocaleDateString("en-MY",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}
+renderTvDate();setInterval(renderTvDate,60000);
+ loadSession();
+ await refreshAll();
+ setInterval(refreshAll,20000) // keeps every screen/device in sync without needing a manual refresh
+}
+window.addEventListener("DOMContentLoaded",init)
+</script>
+</body>
+</html>
