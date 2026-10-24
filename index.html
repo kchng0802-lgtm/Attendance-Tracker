@@ -218,7 +218,9 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 /* ---- Supabase ---- */
 const SUPABASE_URL = "https://gbgxejgscquaovrxelfr.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3hlamdzY3F1YW92cnhlbGZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NDY4NzEsImV4cCI6MjEwMjIyMjg3MX0.nngpDcJDtPbC1K0HWBmH-BfHY8iqRcHXrxKMtY_nCBQ";
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SB_AUTH={auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}}; // anon-only app: no auth storage/locks, so requests cannot hang waiting on a browser lock
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_rRFZ2LTo-pLYlagzygkTXQ_9U6y-d4f"; // second public key for the same project; only used if a network filter blocks the first one
+let sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, SB_AUTH);
 
 const MERGED_DEPT="Receiving & Cycle Count";
 const LEGACY_DEPTS=["Receiving","Cycle Count"]; // old names, folded into MERGED_DEPT
@@ -242,6 +244,26 @@ async function sha256Hex(str){const buf=await crypto.subtle.digest("SHA-256",new
 function db(){return ENTRIES}
 function managers(){return MANAGERS}
 
+async function fetchManagers(key){
+ const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),10000);
+ try{const headers={apikey:key};if(key.startsWith("eyJ"))headers.Authorization="Bearer "+key;
+  const r=await fetch(SUPABASE_URL+"/rest/v1/attendance_managers?select=*&order=login_id",{headers,signal:ctl.signal});
+  const txt=await r.text();
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  let j;try{j=JSON.parse(txt)}catch(e){throw new Error("the network returned a web page instead of data - firewall/proxy")}
+  return j||[]}
+ finally{clearTimeout(t)}
+}
+async function loadManagersDirect(){ // plain fetch with timeout + second key as fallback, so a blocked/stuck connection shows a clear error
+ let firstErr;
+ for(const key of [SUPABASE_ANON_KEY,SUPABASE_PUBLISHABLE_KEY]){
+  try{const rows=await fetchManagers(key);MANAGERS=rows.map(m=>({...m,dept:normDept(m.dept)}));
+   if(key!==SUPABASE_ANON_KEY){sb=supabase.createClient(SUPABASE_URL,key,SB_AUTH);try{refreshAll()}catch(e){}}
+   return}
+  catch(e){if(!firstErr)firstErr=e}
+ }
+ throw firstErr
+}
 async function loadManagers(){
  const {data,error}=await sb.from("attendance_managers").select("*").order("login_id");
  if(error){toast("Could not load logins");console.error(error);return}
@@ -318,8 +340,9 @@ async function login(){try{await loginCore()}catch(e){console.error(e);loginErro
 async function loginCore(){
  const id=loginId.value.trim().toUpperCase(),pin=loginPin.value.trim();
  if(!id||!pin){loginError.textContent="Enter your Login ID and PIN.";return}
- if(!MANAGERS.length){loginError.textContent="Loading logins...";try{await loadManagers()}catch(e){console.error(e)}}
- if(!MANAGERS.length){loginError.textContent=(typeof supabase==="undefined")?"Cannot load the Supabase library (cdn.jsdelivr.net is blocked on this network/browser). Try another network or browser.":"Cannot load logins from the server. Check internet/firewall access to supabase.co, then press Refresh and try again.";return}
+ if(!MANAGERS.length){loginError.textContent="Loading logins...";let why="";try{await loadManagersDirect()}catch(e){console.error(e);why=e.name==="AbortError"?"no reply within 10 seconds":(e.message||String(e))}
+  if(!MANAGERS.length&&!why)why="no logins returned";
+  if(!MANAGERS.length){loginError.textContent="Cannot load logins from the server ("+why+"). Check internet/firewall access to supabase.co, then press Refresh and try again.";return}}
  const hash=await sha256Hex(pin);
  const m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.pin_hash===hash&&x.active);
  if(!m){loginError.textContent="Invalid or inactive Login ID / PIN.";return}
