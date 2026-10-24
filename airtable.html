@@ -116,8 +116,9 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
 <section id="loginView" class="view">
   <div class="authWrap">
     <div class="card loginCard">
-      <h3>Supervisor Login</h3><p>Enter your assigned Login ID.</p>
+      <h3>Supervisor Login</h3><p>Use your assigned Login ID and PIN.</p>
       <div class="field"><label>Login ID</label><input id="loginId" placeholder="e.g. RCV-SUP01"></div>
+      <div class="field"><label>PIN</label><input id="loginPin" type="password" inputmode="numeric" autocomplete="off" placeholder="4–8 digit PIN" onkeydown="if(event.key==='Enter')login()"></div>
       <button class="btn primary" style="width:100%" onclick="login()">Login</button>
       <div id="loginError" style="color:#ff7b84;font-size:12px;margin-top:8px"></div>
     </div>
@@ -180,6 +181,7 @@ table{width:100%;border-collapse:collapse;min-width:880px}th,td{padding:10px;bor
       <div class="field"><label>Supervisor Name</label><input id="mgrName" placeholder="e.g. Ahmad"></div>
       <div class="field"><label>Login ID</label><input id="mgrId" placeholder="e.g. RCV-SUP02"></div>
       <div class="field"><label>Assigned Department</label><select id="mgrDept"></select></div>
+      <div class="field"><label>PIN</label><input id="mgrPin" inputmode="numeric" autocomplete="off" placeholder="4–8 digits"></div>
       <div class="field"><label>Role</label><select id="mgrRole"><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select></div>
       <div class="actions"><button class="btn primary" onclick="saveManager()">Save Login</button><button class="btn ghost" onclick="clearManagerForm()">Clear</button></div>
       <div class="notice" style="margin-top:12px">Logins are stored in the Airtable Managers table. Keep the Airtable base private and the access token limited to this base.</div>
@@ -270,12 +272,12 @@ async function atRun(q){
    return {data:null,error:null};
   }
   if(q.t==="attendance_managers"){
-   const toF=o=>{const f={};["login_id","name","dept","role"].forEach(k=>{if(o[k]!==undefined)f[k]=o[k]});if(o.active!==undefined)f.active=o.active?"yes":"no";return f};
+   const toF=o=>{const f={};["login_id","name","dept","role","pin_hash"].forEach(k=>{if(o[k]!==undefined)f[k]=o[k]});if(o.active!==undefined)f.active=o.active?"yes":"no";return f};
    const eq=(q.filters.find(x=>x[0]==="eq"&&x[1]==="login_id")||[])[2];
    const rid=eq?((typeof MANAGERS!=="undefined"?MANAGERS:[]).find(m=>m.login_id===eq)||{})._rid:null;
    if(q.op==="select"){
     const recs=await atList("Managers");
-    return {data:recs.map(r=>({_rid:r.id,login_id:r.fields.login_id,name:r.fields.name,dept:r.fields.dept,role:r.fields.role,active:atYes(r.fields.active)})).filter(m=>m.login_id).sort((a,b)=>a.login_id.localeCompare(b.login_id)),error:null};
+    return {data:recs.map(r=>({_rid:r.id,login_id:r.fields.login_id,name:r.fields.name,dept:r.fields.dept,role:r.fields.role,pin_hash:r.fields.pin_hash||"",active:atYes(r.fields.active)})).filter(m=>m.login_id).sort((a,b)=>a.login_id.localeCompare(b.login_id)),error:null};
    }
    if(q.op==="insert"){await atFetch("Managers",{method:"POST",body:JSON.stringify({typecast:true,records:[{fields:toF(q.payload)}]})});return {data:null,error:null}}
    if(q.op==="update"){
@@ -435,13 +437,16 @@ function applySession(){
 }
 async function login(){try{await loginCore()}catch(e){console.error(e);loginError.textContent="Login error: "+e.message}}
 async function loginCore(){
- const id=loginId.value.trim().toUpperCase();
-  if(!id){loginError.textContent="Enter your Login ID.";return}
+ const id=loginId.value.trim().toUpperCase(),pin=loginPin.value.trim();
+ if(!id||!pin){loginError.textContent="Enter your Login ID and PIN.";return}
  if(!MANAGERS.length){loginError.textContent="Loading logins...";const why=await loadManagers();
   if(!MANAGERS.length){loginError.textContent="Cannot load logins from Airtable ("+(why||"no logins returned")+"). Check the internet connection and the Airtable settings, then press Refresh and try again.";return}}
  let m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.active);
  if(!m){await loadManagers();m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.active)} // a login added on another device may not be loaded yet
- if(!m){loginError.textContent="Invalid or inactive Login ID.";return}
+ if(!m){loginError.textContent="Invalid or inactive Login ID / PIN.";return}
+ if(!m.pin_hash||m.pin_hash==="none"){loginError.textContent="No PIN is set for this login yet. Ask an admin to set one.";return}
+ if(await sha256Hex(pin)!==m.pin_hash){loginError.textContent="Invalid or inactive Login ID / PIN.";return}
+ loginPin.value="";
  session={login_id:m.login_id,name:m.name,dept:normDept(m.dept),role:m.role};sessionStorage.setItem("bc_final_session",JSON.stringify(session));loginError.textContent="";applySession();toast("Welcome "+m.name);switchView(m.role==="admin"?"admin":"supervisor")
 }
 function logout(){session=null;sessionStorage.removeItem("bc_final_session");applySession();toast("Logged out");switchView("tv")}
@@ -503,22 +508,24 @@ function renderSupervisor(){
 function renderAdmin(){
  managerTable.innerHTML=`<thead><tr><th>Name</th><th>Login ID</th><th>Department</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${managers().map((m,i)=>`<tr><td><b>${m.name}</b></td><td>${m.login_id}</td><td>${m.dept}</td><td>${m.role}</td><td class="${m.active?"statusOn":"statusOff"}">${m.active?"Active":"Inactive"}</td><td><button class="smallBtn" onclick="editManager(${i})">Edit</button> <button class="smallBtn warn" onclick="toggleManager(${i})">${m.active?"Disable":"Enable"}</button>${m.login_id!=="ADMIN"?` <button class="smallBtn danger" onclick="deleteManager(${i})">Delete</button>`:""}</td></tr>`).join("")}</tbody>`
 }
-function clearManagerForm(){mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
-function editManager(i){const m=managers()[i];mgrName.value=m.name;mgrId.value=m.login_id;mgrId.readOnly=false;mgrDept.value=m.dept;mgrRole.value=m.role;mgrId.dataset.edit=String(i)}
+function clearManagerForm(){mgrPin.value="";mgrPin.placeholder="4–8 digits";mgrName.value="";mgrId.value="";mgrId.readOnly=false;mgrDept.value=DEPTS[0];mgrRole.value="supervisor";mgrId.dataset.edit=""}
+function editManager(i){const m=managers()[i];mgrPin.value="";mgrPin.placeholder="Leave blank to keep current PIN";mgrName.value=m.name;mgrId.value=m.login_id;mgrId.readOnly=false;mgrDept.value=m.dept;mgrRole.value=m.role;mgrId.dataset.edit=String(i)}
 async function saveManager(){
- const name=mgrName.value.trim(),id=mgrId.value.trim().toUpperCase(),dept=mgrDept.value,role=mgrRole.value;
+ const name=mgrName.value.trim(),id=mgrId.value.trim().toUpperCase(),pin=mgrPin.value.trim(),dept=mgrDept.value,role=mgrRole.value;
+ if(pin&&!/^\d{4,8}$/.test(pin))return alert("PIN must be 4–8 digits.");
  if(!name||!id)return alert("Please complete name and Login ID.");
  const edit=mgrId.dataset.edit;
  if(!edit){
   if(managers().some(x=>x.login_id===id))return alert("Login ID already exists.");
-  const pin_hash="none"; // logins use the ID only; Airtable keeps no PIN
+  if(!pin)return alert("A PIN is required for a new login.");
+  const pin_hash=await sha256Hex(pin);
   const {error}=await sb.from("attendance_managers").insert({login_id:id,name,pin_hash,dept,role,active:true});
   if(error){toast("Save failed");console.error(error);return}
   logAudit("create_manager",id,{name,dept,role})
  }else{
   const idx=Number(edit),existing=managers()[idx];
   if(id!==existing.login_id&&managers().some(x=>x.login_id===id&&x.login_id!==existing.login_id))return alert("Login ID already exists.");
-  const update={login_id:id,name,dept,role};
+  const update={login_id:id,name,dept,role};if(pin)update.pin_hash=await sha256Hex(pin);
   const {error}=await sb.from("attendance_managers").update(update).eq("login_id",existing.login_id);
   if(error){toast("Save failed");console.error(error);return}
   if(id!==existing.login_id&&session?.login_id===existing.login_id){session.login_id=id;sessionStorage.setItem("bc_final_session",JSON.stringify(session))}
