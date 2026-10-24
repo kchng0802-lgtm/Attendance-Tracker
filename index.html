@@ -314,9 +314,12 @@ function applySession(){
  const logged=!!session;loginBtn.classList.toggle("hidden",logged);logoutBtn.classList.toggle("hidden",!logged);
  updateBtn.classList.toggle("hidden",!logged);adminBtn.classList.toggle("hidden",!(logged&&session.role==="admin"));historyBtn.classList.toggle("hidden",!(logged&&session.role==="admin"))
 }
-async function login(){
+async function login(){try{await loginCore()}catch(e){console.error(e);loginError.textContent=(typeof supabase==="undefined")?"Cannot load the Supabase library (cdn.jsdelivr.net is blocked on this network/browser). Try another network or browser.":"Login error: "+e.message}}
+async function loginCore(){
  const id=loginId.value.trim().toUpperCase(),pin=loginPin.value.trim();
  if(!id||!pin){loginError.textContent="Enter your Login ID and PIN.";return}
+ if(!MANAGERS.length){loginError.textContent="Loading logins...";try{await loadManagers()}catch(e){console.error(e)}}
+ if(!MANAGERS.length){loginError.textContent=(typeof supabase==="undefined")?"Cannot load the Supabase library (cdn.jsdelivr.net is blocked on this network/browser). Try another network or browser.":"Cannot load logins from the server. Check internet/firewall access to supabase.co, then press Refresh and try again.";return}
  const hash=await sha256Hex(pin);
  const m=MANAGERS.find(x=>x.login_id.toUpperCase()===id&&x.pin_hash===hash&&x.active);
  if(!m){loginError.textContent="Invalid or inactive Login ID / PIN.";return}
